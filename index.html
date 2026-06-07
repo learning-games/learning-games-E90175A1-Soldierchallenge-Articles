@@ -1,0 +1,2315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Soldier Challenge · A / An / The</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&family=Sarabun:wght@500;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+ * Design tokens
+ * ========================================================== */
+:root{
+  --sky-1:#bdeaff;
+  --sky-2:#dff5ff;
+  --grass-1:#bff0c4;
+  --grass-2:#8fdc9c;
+  --paper:#fffdf7;
+  --paper-edge:#ffe6b8;
+  --ink:#2b3a55;
+  --ink-soft:#5d6b85;
+
+  --article:#ff6b54;     /* article color (a / an / the)  */
+  --word:#2f6db0;        /* noun color                     */
+
+  --slot-a:#ffd24a;      /* A  -> sunny yellow */
+  --slot-an:#ff9aa6;     /* An -> coral pink   */
+  --slot-the:#7ec8ff;    /* The-> sky blue     */
+  --slot-none:#b7c0d0;   /* —  -> neutral grey */
+
+  --good:#2faa5d;
+  --bad:#e8553e;
+
+  /* military green for the Start button */
+  --army-1:#a7d28a;
+  --army-2:#7fb968;
+  --army-3:#5d9a45;
+  --army-edge:#cfe6b8;
+
+  --shadow:0 14px 26px -14px rgba(43,58,85,.45), 0 3px 0 rgba(43,58,85,.08);
+  --shadow-lg:0 30px 60px -28px rgba(43,58,85,.5);
+  --radius:22px;
+
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+}
+
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%; margin:0;}
+body{
+  height:100vh; height:100dvh;
+  font-family:"Sarabun","Mali",system-ui,sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(130% 90% at 50% 0%, var(--sky-1) 0%, var(--sky-2) 55%, #eafbff 100%);
+  overflow:hidden;
+  overscroll-behavior:none;
+  user-select:none; -webkit-user-select:none;
+  touch-action:none;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ============================================================
+ * App shell — fixed, flex column, never scrolls
+ * ========================================================== */
+#app{
+  position:fixed; inset:0;
+  display:flex; flex-direction:column;
+  padding:var(--safe-top) var(--safe-right) var(--safe-bot) var(--safe-left);
+  z-index:2;
+  /* during play a random bg{1-4}.png is set via inline style */
+  background-size:cover; background-position:center center; background-repeat:no-repeat;
+  transition:background-image .3s ease;
+}
+/* when a real game background image is shown, hide the CSS-drawn scenery */
+body.in-game .scene{ display:none; }
+/* keep the question + answer boxes + soldier hidden until the countdown ends */
+body.pre-reveal .banner,
+body.pre-reveal .lanes,
+body.pre-reveal .soldier,
+body.pre-reveal .dizzy{ visibility:hidden; }
+
+/* Decorative background scenery */
+.scene{ position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.scene .sun{
+  position:absolute; top:5%; right:8%;
+  width:clamp(60px,12vmin,120px); aspect-ratio:1; border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,#fff2b0 0%,#ffd95e 60%,rgba(255,217,94,0) 72%);
+  filter:blur(1px);
+}
+.scene .cloud{
+  position:absolute; height:clamp(20px,4vmin,40px); border-radius:50px;
+  background:#fff; opacity:.85;
+}
+.scene .cloud::before,.scene .cloud::after{
+  content:""; position:absolute; background:inherit; border-radius:50%;
+}
+.scene .cloud::before{ width:1.6em; height:1.6em; left:12%; top:-55%; }
+.scene .cloud::after{ width:2.2em; height:2.2em; right:14%; top:-90%; }
+.scene .ground{
+  position:absolute; left:0; right:0; bottom:0; height:24%;
+  background:linear-gradient(to bottom,var(--grass-1),var(--grass-2));
+  border-top:4px dashed rgba(255,255,255,.5);
+}
+.scene .hill{
+  position:absolute; bottom:22%; width:46vmin; height:46vmin; border-radius:50%;
+  background:var(--grass-1); opacity:.7;
+}
+.scene .hill.l{ left:-12vmin; }
+.scene .hill.r{ right:-14vmin; bottom:21%; }
+
+/* ============================================================
+ * HUD
+ * ========================================================== */
+.hud{
+  position:relative; z-index:4; flex:0 0 auto;
+  display:flex; align-items:center; gap:clamp(5px,1.4vw,12px);
+  padding:clamp(6px,1.5vh,14px) clamp(8px,2vw,20px);
+}
+.pill{
+  display:inline-flex; align-items:center; gap:clamp(5px,1vw,9px);
+  background:var(--paper); border:3px solid var(--paper-edge);
+  border-radius:999px;
+  padding:clamp(4px,1vh,8px) clamp(9px,1.6vw,16px);
+  box-shadow:var(--shadow);
+  font-weight:800; white-space:nowrap;
+}
+.pill .ico{ font-size:clamp(14px,2.4vmin,22px); line-height:1; }
+.pill .val{
+  font-family:"Mali",sans-serif;
+  font-size:clamp(15px,3vmin,26px); line-height:1; min-width:1ch;
+}
+.pill.hit{ animation:bump .4s ease; }
+@keyframes bump{ 0%,100%{transform:scale(1)} 40%{transform:scale(1.16)} }
+.spacer{ flex:1 1 auto; }
+.iconbtn{
+  appearance:none; border:3px solid var(--paper-edge); background:var(--paper);
+  color:var(--ink);
+  width:clamp(34px,6.6vmin,46px); height:clamp(34px,6.6vmin,46px);
+  border-radius:14px; display:grid; place-items:center; cursor:pointer;
+  box-shadow:var(--shadow); flex:0 0 auto;
+  transition:transform .1s ease, background .12s ease, color .12s ease;
+  font-size:clamp(16px,3vmin,22px);
+}
+.iconbtn:active{ transform:translateY(2px); }
+.iconbtn.muted{ color:#9aa6bd; }
+
+/* ============================================================
+ * Stage (the elastic play area)
+ * ========================================================== */
+.stage{
+  position:relative; z-index:3; flex:1 1 auto; min-height:0; overflow:hidden;
+}
+
+/* Question banner — transparent, larger text (bigger than the box labels) */
+.banner{
+  position:absolute; left:50%; top:clamp(2px,1.4vh,14px);
+  transform:translateX(-50%);
+  z-index:6;
+  background:rgba(255,255,255,.5);
+  border:none;
+  border-radius:clamp(14px,2.4vh,22px);
+  box-shadow:none;
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  padding:clamp(4px,1vh,10px) clamp(16px,3.4vw,30px);
+  text-align:center; white-space:nowrap; max-width:96vw;
+}
+.banner .prompt{
+  display:block; font-weight:800; color:var(--ink-soft);
+  font-size:clamp(11px,1.9vh,18px); letter-spacing:.05em; margin-bottom:2px;
+  text-shadow:0 2px 0 rgba(255,255,255,.7);
+}
+.phrase{
+  font-family:"Mali",sans-serif; font-weight:800;
+  font-size:clamp(44px,9.6vh,99px); line-height:1.05;
+  display:inline-flex; align-items:baseline; gap:.3em; justify-content:center;
+  text-shadow:0 3px 0 rgba(255,255,255,.65), 0 5px 10px rgba(43,58,85,.15);
+}
+.phrase .art{ color:var(--article); transition:color .15s ease; }
+.phrase .noun{ color:var(--word); }
+
+/* ============================================================
+ * Lanes + answer boxes (now near the TOP of the stage)
+ * ========================================================== */
+.lanes{
+  position:absolute; inset:0; z-index:3;
+  display:flex; align-items:flex-start; justify-content:center;
+}
+.lane{
+  position:relative; flex:1 1 0;
+  height:100%;
+  display:flex; flex-direction:column; align-items:center;
+  /* push the boxes down to clear the bigger question banner, kept in TOP zone */
+  padding-top:clamp(86px,19vh,168px);
+}
+/* dashed divider between lanes — starts at the answer box's vertical centre
+   and runs all the way down to the bottom of the screen. Drawn as an explicit
+   dash pattern so the dashes are always clearly visible. */
+.lane + .lane::before{
+  content:""; position:absolute; left:-5px;
+  top:calc(clamp(86px,19vh,168px) + clamp(33px,7.7vh,67px));
+  bottom:0;
+  width:10px;
+  background-image:linear-gradient(to bottom,
+    rgba(83,144,59,.95) 0,
+    rgba(83,144,59,.95) 50%,
+    transparent 50%,
+    transparent 100%);
+  background-size:100% 24px;
+  background-repeat:repeat-y;
+  border-radius:4px;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));
+}
+
+.box-wrap{
+  position:relative;
+  width:min(88%, clamp(130px,26vw,262px));
+  aspect-ratio:5/2.9;
+}
+.slot{
+  position:relative; width:100%; height:100%;
+  border-radius:var(--radius);
+  background:var(--paper); border:none;
+  box-shadow:var(--shadow);
+  display:grid; place-items:center;
+  cursor:pointer;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.slot:active{ transform:translateY(2px); }
+.lane[data-i="0"] .slot{ background:linear-gradient(180deg,#fff,#fff7df); }
+.lane[data-i="1"] .slot{ background:linear-gradient(180deg,#fff,#fff0f1); }
+.lane[data-i="2"] .slot{ background:linear-gradient(180deg,#fff,#eef7ff); }
+.lane[data-i="3"] .slot{ background:linear-gradient(180deg,#fff,#eef0f4); }
+/* lane tint goes on the SVG TRACK so the box still has its colored outline */
+.lane[data-i="0"] .ring .track{ stroke:var(--slot-a); }
+.lane[data-i="1"] .ring .track{ stroke:var(--slot-an); }
+.lane[data-i="2"] .ring .track{ stroke:var(--slot-the); }
+.lane[data-i="3"] .ring .track{ stroke:var(--slot-none); }
+/* 4-lane level: bigger boxes + larger text (still fits all four) */
+.lanes[data-n="4"] .box-wrap{ width:min(96%, clamp(124px,24.5vw,250px)); }
+.lanes[data-n="4"] .slot .txt{ font-size:clamp(36px,7.6vh,74px); }
+.slot .txt{
+  font-family:"Mali",sans-serif; font-weight:800; color:var(--ink);
+  font-size:clamp(38px,8vh,78px); line-height:1; pointer-events:none;
+}
+.lane.active .slot{ transform:translateY(-5px) scale(1.04); box-shadow:var(--shadow-lg); }
+.slot.correct{ animation:slotGood .6s ease; }
+.slot.wrong{ animation:slotBad .45s ease; }
+/* feedback colors on the SVG track (border) */
+.lane .slot.correct ~ .settle,
+.lane .slot.wrong   ~ .settle{ /* placeholder so previous rules still parse */ }
+.lane.fb-correct .ring .track{ stroke:var(--good) !important; }
+.lane.fb-wrong   .ring .track{ stroke:var(--bad)  !important; }
+.lane.fb-reveal  .ring .track{ stroke:var(--good) !important; }
+.lane.fb-reveal  .ring .track{ stroke-width:9; }
+@keyframes slotGood{ 0%{transform:scale(1)} 45%{transform:scale(1.12)} 100%{transform:scale(1)} }
+@keyframes slotBad{
+  0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)}
+}
+
+/* Progress: ONE continuous stripe that travels AROUND the OUTSIDE of the
+   box and closes the loop exactly when the hold time is up.
+   The SVG keeps a uniform aspect (no stretch) so the stroke is even and
+   the dash stays unbroken; the rect is drawn beyond the viewBox (overflow
+   visible) so it sits clear of the box's own border. */
+.ring{
+  position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none; overflow:visible;
+}
+.ring rect, .ring path{ fill:none; }
+/* Track = the box's own border (per-lane tint colored above). Always visible. */
+.ring .track{ stroke:rgba(43,58,85,.2); stroke-width:7; opacity:1; }
+/* Progress = two halves starting at the TOP-CENTRE of the box, one running
+   clockwise, the other counter-clockwise, meeting at the bottom-centre when
+   the hold completes. */
+.ring .prog{
+  stroke:url(#fireGrad); stroke-width:7; stroke-linecap:round; fill:none;
+  stroke-dasharray:100 100;
+  stroke-dashoffset:100;
+  opacity:0;
+  transition:stroke-dashoffset .08s linear;
+}
+.lane.active .ring .prog{ opacity:1; animation:flameFlicker .42s linear infinite; }
+/* flickering glow so the growing stripe looks like creeping / spreading fire */
+@keyframes flameFlicker{
+  0%   { filter:drop-shadow(0 0 2px #ffd24a) drop-shadow(0 0 5px #ff7a18); }
+  20%  { filter:drop-shadow(0 0 4px #ffae00) drop-shadow(0 0 9px #ff3d00); }
+  40%  { filter:drop-shadow(0 0 2px #ffe46b) drop-shadow(0 0 6px #ff5e00); }
+  60%  { filter:drop-shadow(0 0 5px #ffc400) drop-shadow(0 0 11px #ff2d00); }
+  80%  { filter:drop-shadow(0 0 3px #ffd24a) drop-shadow(0 0 7px #ff7a18); }
+  100% { filter:drop-shadow(0 0 2px #ffd24a) drop-shadow(0 0 5px #ff7a18); }
+}
+
+/* settle dots under the active box (copied behaviour) */
+.settle{
+  display:flex; gap:clamp(3px,.7vw,7px); margin-top:clamp(5px,1.2vh,12px);
+  height:clamp(8px,1.6vh,15px); opacity:0; transition:opacity .2s;
+}
+.lane.active .settle{ opacity:1; }
+.settle i{
+  width:clamp(6px,1.2vh,11px); aspect-ratio:1; border-radius:50%;
+  background:var(--army-3); animation:blink 1s infinite;
+}
+.settle i:nth-child(2){ animation-delay:.15s; }
+.settle i:nth-child(3){ animation-delay:.3s; }
+@keyframes blink{ 0%,100%{opacity:.3; transform:scale(.8)} 50%{opacity:1; transform:scale(1.1)} }
+
+/* ============================================================
+ * Soldier (walks on the ground at the BOTTOM)
+ * ========================================================== */
+.soldier{
+  position:absolute; left:50%; bottom:clamp(40px,12vh,118px);
+  width:clamp(76px,15.5vmin,140px);
+  transform:translateX(-50%);
+  z-index:5; pointer-events:none;
+  transition:left .3s cubic-bezier(.34,1.4,.6,1);
+}
+.soldier-inner{
+  width:100%; transform-origin:50% 100%;
+  animation:bob 1.6s ease-in-out infinite;
+}
+.soldier svg{ width:100%; height:auto; display:block; overflow:visible;
+  filter:drop-shadow(0 6px 5px rgba(43,58,85,.28)); }
+@keyframes bob{
+  0%,100%{ transform:translateY(0) rotate(0deg); }
+  50%   { transform:translateY(-7%) rotate(0deg); }
+}
+.soldier.happy .soldier-inner{ animation:cheer .6s ease; }
+.soldier.hop   .soldier-inner{ animation:hop .34s ease; }
+.soldier.hurt  .soldier-inner{ animation:hurt .55s ease; }
+.soldier.flash svg{ animation:flashRed .12s 3; }
+@keyframes cheer{
+  0%,100%{ transform:translateY(0) rotate(0); }
+  30%{ transform:translateY(-28%) rotate(-6deg); }
+  60%{ transform:translateY(-10%) rotate(6deg); }
+}
+@keyframes hop{
+  0%{ transform:translateY(0); } 45%{ transform:translateY(-22%); } 100%{ transform:translateY(0); }
+}
+@keyframes hurt{
+  0%,100%{ transform:translateX(0) rotate(0); }
+  20%{ transform:translateX(-7%) rotate(-12deg); }
+  45%{ transform:translateX(7%) rotate(10deg); }
+  70%{ transform:translateX(-5%) rotate(-7deg); }
+}
+@keyframes flashRed{
+  0%,100%{ filter:drop-shadow(0 6px 5px rgba(43,58,85,.28)); }
+  50%{ filter:drop-shadow(0 0 0 #fff) brightness(1.4) sepia(1) hue-rotate(-25deg) saturate(4); }
+}
+
+/* dizzy stars over the soldier when hit */
+.dizzy{
+  position:absolute; left:50%; bottom:clamp(108px,28vmin,250px);
+  transform:translateX(-50%);
+  z-index:6; font-size:clamp(16px,3.4vmin,32px); opacity:0;
+  transition:left .3s;
+}
+.dizzy.show{ animation:spinStars 1s ease; }
+@keyframes spinStars{
+  0%{ opacity:0; transform:translateX(-50%) rotate(0) scale(.5); }
+  30%{ opacity:1; }
+  100%{ opacity:0; transform:translateX(-50%) rotate(360deg) scale(1.2); }
+}
+
+/* falling object that drops onto the soldier on a wrong answer */
+.falling{
+  position:absolute; top:clamp(86px,19vh,168px); left:50%;
+  font-size:clamp(22px,5vmin,48px); z-index:6;
+  transform:translateX(-50%); pointer-events:none;
+  will-change:transform;
+  filter:drop-shadow(0 3px 3px rgba(43,58,85,.3));
+}
+.falling.go{ animation:dropDown .62s cubic-bezier(.5,0,.9,.6) forwards; }
+/* animate transform (GPU-composited) instead of top; --drop is set per-drop in JS */
+@keyframes dropDown{
+  0%{ transform:translate(-50%,0) rotate(0); }
+  100%{ transform:translate(-50%, var(--drop, 56vh)) rotate(38deg); }
+}
+
+/* big floating feedback word ("ถูกต้อง!" / "ลองอีกครั้ง!") */
+.feedback{
+  position:absolute; left:50%; top:46%;
+  transform:translate(-50%,-50%) scale(.5);
+  z-index:7; pointer-events:none; opacity:0;
+  font-family:"Mali",sans-serif; font-weight:700;
+  font-size:clamp(34px,9vmin,92px);
+  text-shadow:0 3px 0 rgba(43,58,85,.18);
+}
+.feedback.show{ animation:fbPop 1.1s ease; }
+.feedback.shake{ animation:fbPop 1.1s ease, fbShake .5s ease; }
+@keyframes fbPop{
+  0%{ opacity:0; transform:translate(-50%,-50%) scale(.4); }
+  25%{ opacity:1; transform:translate(-50%,-50%) scale(1.18); }
+  70%{ opacity:1; transform:translate(-50%,-60%) scale(1.05); }
+  100%{ opacity:0; transform:translate(-50%,-80%) scale(1); }
+}
+@keyframes fbShake{
+  0%,100%{ filter:none; }
+  20%{ transform:translate(-54%,-50%) scale(1.18) rotate(-3deg); }
+  40%{ transform:translate(-46%,-50%) scale(1.22) rotate(3deg); }
+  60%{ transform:translate(-53%,-52%) scale(1.18) rotate(-2deg); }
+  80%{ transform:translate(-47%,-50%) scale(1.18) rotate(2deg); }
+}
+
+/* full-screen soft red flash on wrong answer */
+#redFlash{
+  position:fixed; inset:0; z-index:18; pointer-events:none; opacity:0;
+  background:radial-gradient(ellipse at center,
+    rgba(232,85,62,.0) 0%,
+    rgba(232,85,62,.18) 35%,
+    rgba(232,85,62,.55) 100%);
+  mix-blend-mode:multiply;
+}
+#redFlash.show{ animation:redPulse .85s ease; }
+@keyframes redPulse{
+  0%{ opacity:0; }
+  18%{ opacity:1; }
+  55%{ opacity:.55; }
+  100%{ opacity:0; }
+}
+
+/* screen shake on wrong answer */
+.shake-screen{ animation:shakeScreen .55s cubic-bezier(.36,.07,.19,.97); }
+@keyframes shakeScreen{
+  0%,100%{ transform:translate(0,0); }
+  10%{ transform:translate(-6px,2px); }
+  20%{ transform:translate(7px,-2px); }
+  30%{ transform:translate(-8px,3px); }
+  40%{ transform:translate(7px,-3px); }
+  50%{ transform:translate(-6px,2px); }
+  60%{ transform:translate(5px,-2px); }
+  70%{ transform:translate(-4px,1px); }
+  80%{ transform:translate(3px,-1px); }
+  90%{ transform:translate(-2px,1px); }
+}
+
+/* Teaching toast (kept from my original UX) */
+.toast{
+  position:absolute; left:50%; bottom:clamp(6px,2vh,22px);
+  transform:translateX(-50%) translateY(6px);
+  z-index:7; pointer-events:none; opacity:0;
+  background:rgba(43,58,85,.92); color:#fff;
+  font-weight:800; font-size:clamp(11px,1.8vh,16px);
+  padding:clamp(6px,1.2vh,11px) clamp(12px,2.4vw,20px);
+  border-radius:999px; max-width:92vw; white-space:normal; text-align:center;
+  box-shadow:var(--shadow-lg);
+  transition:opacity .2s ease, transform .2s ease;
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+.toast.good{ background:rgba(47,170,93,.95); }
+.toast.bad{ background:rgba(232,85,62,.95); }
+
+/* burst stars on a correct answer */
+.burst{
+  position:absolute; z-index:7; pointer-events:none;
+  font-size:clamp(15px,3.2vmin,30px);
+  animation:burstFly .8s ease forwards;
+}
+@keyframes burstFly{
+  0%{ opacity:0; transform:translate(-50%,-50%) scale(.3); }
+  25%{ opacity:1; }
+  100%{ opacity:0; transform:translate(var(--bx),var(--by)) scale(1.1) rotate(var(--br)); }
+}
+
+/* ============================================================
+ * Overlays / screens
+ * ========================================================== */
+.overlay{
+  position:fixed; inset:0; z-index:20;
+  display:none; align-items:center; justify-content:center;
+  padding:max(14px,var(--safe-top)) 16px max(14px,var(--safe-bot));
+  background:radial-gradient(130% 90% at 50% 0%, rgba(189,234,255,.92), rgba(223,245,255,.95) 60%, rgba(234,251,255,.97));
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  overflow:hidden;
+}
+.overlay.show{ display:flex; }
+
+.card{
+  width:min(620px,94vw); max-height:94vh; overflow:auto;
+  background:var(--paper); border:4px solid var(--paper-edge);
+  border-radius:30px; box-shadow:var(--shadow-lg);
+  padding:clamp(16px,3.4vh,34px) clamp(18px,4vw,40px);
+  text-align:center;
+}
+.title{
+  font-family:"Mali",sans-serif; font-weight:800; color:var(--ink);
+  font-size:clamp(28px,6vh,52px); line-height:1; margin:0 0 4px;
+}
+.title .a{ color:var(--slot-a); } .title .an{ color:var(--slot-an); } .title .the{ color:var(--slot-the); }
+.subtitle{
+  color:var(--ink-soft); font-weight:700; margin:0 0 clamp(10px,2vh,18px);
+  font-size:clamp(13px,2.1vh,18px);
+}
+.how{
+  text-align:left; background:#fff; border:3px dashed var(--paper-edge);
+  border-radius:18px; padding:clamp(10px,2vh,18px) clamp(14px,2.6vw,22px);
+  margin:0 auto clamp(12px,2.4vh,20px); max-width:520px;
+}
+.how li{ margin:6px 0; font-weight:700; font-size:clamp(12px,2vh,16px); line-height:1.45; }
+.how b.art{ color:var(--article); } .how b.word{ color:var(--word); }
+.btn{
+  appearance:none; border:none; cursor:pointer;
+  font-family:"Mali",sans-serif; font-weight:800;
+  font-size:clamp(16px,2.8vh,24px); color:#fff;
+  background:linear-gradient(180deg,#ff8a5c,#ff6b54);
+  padding:clamp(10px,1.8vh,16px) clamp(22px,4vw,40px);
+  border-radius:999px; box-shadow:0 8px 0 #d8482f, var(--shadow);
+  transition:transform .08s ease, box-shadow .08s ease;
+  margin:6px;
+}
+.btn:active{ transform:translateY(5px); box-shadow:0 3px 0 #d8482f, var(--shadow); }
+/* light-green military Start / Play-again button */
+.btn.army{
+  color:#2f4a23;
+  background:linear-gradient(180deg,var(--army-1),var(--army-2));
+  border:3px solid var(--army-edge);
+  box-shadow:0 8px 0 var(--army-3), var(--shadow);
+}
+.btn.army:active{ box-shadow:0 3px 0 var(--army-3), var(--shadow); }
+.btn.alt{
+  background:linear-gradient(180deg,#8fd0ff,#5bb3f5);
+  box-shadow:0 8px 0 #3b8fd0, var(--shadow);
+}
+.btn.alt:active{ box-shadow:0 3px 0 #3b8fd0, var(--shadow); }
+.btn.secondary{
+  color:var(--ink); background:#fff;
+  border:3px solid var(--paper-edge);
+  box-shadow:0 6px 0 rgba(43,58,85,.12), var(--shadow);
+}
+.btn.secondary:active{ box-shadow:0 2px 0 rgba(43,58,85,.12), var(--shadow); }
+.btn-row{ display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
+
+/* mascot in start card */
+.mascot{ width:clamp(70px,16vh,130px); margin:0 auto clamp(4px,1vh,10px); }
+.mascot svg{ width:100%; height:auto; display:block; }
+
+/* Result stat grid */
+.stats{
+  display:flex; justify-content:center; flex-wrap:wrap; gap:clamp(8px,2vw,16px);
+  margin:clamp(8px,2vh,18px) auto; max-width:480px;
+}
+.stat{
+  flex:0 1 150px; text-align:center;
+  background:#fff; border:3px solid var(--paper-edge); border-radius:18px;
+  padding:clamp(8px,1.6vh,16px) 6px;
+}
+.stat .n{
+  font-family:"Mali",sans-serif; font-weight:800; color:var(--article);
+  font-size:clamp(22px,4.4vh,40px); line-height:1;
+}
+.stat .l{ color:var(--ink-soft); font-weight:800; font-size:clamp(10px,1.7vh,14px); margin-top:3px; }
+.stars{ font-size:clamp(28px,6vh,52px); letter-spacing:.12em; margin:clamp(4px,1vh,10px) 0; }
+
+/* Countdown (before game) + End (score summary): strong dark blur backdrop like example */
+#countdown, #endOverlay{
+  background:rgba(18,24,38,.55);
+  backdrop-filter:blur(20px) saturate(.75); -webkit-backdrop-filter:blur(20px) saturate(.75);
+}
+#endOverlay{ z-index:55; }
+#countdown{ z-index:70; }
+.cd-num{
+  font-family:"Mali",sans-serif; font-weight:800; color:#fff;
+  font-size:clamp(90px,30vh,260px); line-height:1;
+  text-shadow:0 10px 30px rgba(0,0,0,.4);
+  animation:cdPop .7s ease;
+}
+@keyframes cdPop{ 0%{transform:scale(.3);opacity:0} 40%{transform:scale(1.15);opacity:1} 100%{transform:scale(1)} }
+
+/* ============================================================
+ * Rotate / landscape-only protection (TOP layer)
+ * ========================================================== */
+#rotate{
+  position:fixed; inset:0; z-index:999;
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; padding:24px; text-align:center;
+  background:radial-gradient(130% 90% at 50% 0%,#bdeaff,#dff5ff);
+  color:var(--ink);
+}
+@media (orientation:portrait){ #rotate{ display:flex; } }
+body.force-portrait #rotate{ display:flex; }
+#rotate .phone{
+  width:clamp(80px,22vmin,140px); height:auto;
+  animation:rotateHint 2.2s ease-in-out infinite;
+}
+@keyframes rotateHint{
+  0%,30%{ transform:rotate(0deg); }
+  55%,75%{ transform:rotate(-90deg); }
+  100%{ transform:rotate(-90deg); }
+}
+#rotate h2{ font-family:"Mali",sans-serif; font-size:clamp(22px,7vw,40px); margin:0; }
+#rotate p{ font-weight:700; color:var(--ink-soft); margin:0; font-size:clamp(13px,4vw,18px); max-width:30ch; }
+
+/* ============================================================
+ * Camera layers (fullscreen, behind game)
+ * ========================================================== */
+#cameraMirror{
+  position:fixed; inset:0; width:100%; height:100%;
+  object-fit:cover; transform:scaleX(-1);
+  z-index:0; display:none; background:#0d1426;
+}
+#camCanvas{
+  position:fixed; inset:0; width:100%; height:100%;
+  z-index:1; display:none; pointer-events:none;
+}
+/* in camera mode: hide painted scenery + cartoon soldier, dim boxes a touch */
+body.cam-on .scene{ opacity:0; }
+body.cam-on #app{ background:transparent !important; }
+body.cam-on #app{ background-image:none !important; }
+body.cam-on .soldier{ display:none; }
+body.cam-on .dizzy{ display:none; }
+body.cam-on .slot{ background:rgba(255,255,255,.92) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+body.cam-on .lane.active .slot{ outline:4px solid rgba(255,255,255,.7); }
+/* a floating "you are the soldier" tag that follows the player */
+#playerTag{
+  position:fixed; z-index:6; display:none; pointer-events:none;
+  transform:translate(-50%,-120%);
+  font-family:"Mali",sans-serif; font-weight:800; font-size:clamp(12px,2.4vmin,20px);
+  color:#fff; background:rgba(63,125,79,.92); padding:4px 12px; border-radius:999px;
+  white-space:nowrap; box-shadow:var(--shadow);
+}
+body.cam-on #playerTag.show{ display:block; }
+/* zone hint when player steps too close / out of frame */
+#zoneWarning{
+  position:fixed; left:50%; bottom:8%; transform:translateX(-50%);
+  z-index:21; display:none; max-width:80vw; text-align:center;
+  background:rgba(232,85,62,.95); color:#fff; font-weight:800;
+  font-size:clamp(13px,2.4vmin,18px); padding:10px 18px; border-radius:999px;
+  box-shadow:var(--shadow-lg);
+}
+#zoneWarning.show{ display:block; }
+
+/* ============================================================
+ * Shell overlays (splash / menu / preload / guide)
+ * ========================================================== */
+.overlay.shell{ z-index:30; }
+
+/* splash + menu: full-screen bg.png, no gradient/blur over it */
+#splashOverlay, #menuOverlay{
+  background:url("image/bg.png") center/cover no-repeat;
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+}
+#splashOverlay{ z-index:48; }
+#menuOverlay{ z-index:50; }
+#howOverlay{ z-index:52; }
+#preloadOverlay{ z-index:60;
+  background:rgba(18,24,38,.55);
+  backdrop-filter:blur(20px) saturate(.75); -webkit-backdrop-filter:blur(20px) saturate(.75);
+}
+#guideOverlay{ z-index:65;
+  background:rgba(18,24,38,.55);
+  backdrop-filter:blur(20px) saturate(.75); -webkit-backdrop-filter:blur(20px) saturate(.75);
+}
+
+/* Splash loading filter — blur everything until bg.png + banner.png are ready */
+#splashOverlay.loading{ background:var(--sky-2); }
+#splashOverlay.loading::before{
+  content:""; position:absolute; inset:0;
+  background:url("image/bg.png") center/cover no-repeat;
+  filter:blur(28px) saturate(.85); transform:scale(1.1);
+  opacity:0; transition:opacity .5s ease; pointer-events:none; z-index:0;
+}
+#splashOverlay.loading.bg-ready::before{ opacity:1; }
+#splashOverlay .splash-inner{ position:relative; z-index:1; }
+#splashOverlay.loading .splash-inner{ opacity:0; filter:blur(12px); transition:opacity .6s ease, filter .6s ease; }
+#splashOverlay:not(.loading) .splash-inner{ opacity:1; filter:blur(0); transition:opacity .6s ease, filter .6s ease; }
+
+/* Splash */
+.splash-inner{ text-align:center; display:flex; flex-direction:column; align-items:center;
+  gap:clamp(14px,3vh,32px); width:min(96vw,1000px);
+  max-height:calc(100dvh - 32px); }
+.splash-banner{ width:min(96vw,1170px); max-height:82dvh; height:auto; object-fit:contain;
+  filter:drop-shadow(0 14px 26px rgba(43,58,85,.3));
+  animation:splashPop .6s cubic-bezier(.34,1.56,.64,1) both; }
+@keyframes splashPop{ 0%{transform:translateY(18px) scale(.9);opacity:0;} 100%{transform:none;opacity:1;} }
+.btn.big{ font-size:clamp(18px,3.4vh,28px); padding:clamp(12px,2.2vh,18px) clamp(28px,5vw,52px); }
+
+/* Menu / level select — banner + box as ONE centered group that scales with the screen */
+#menuOverlay{ align-items:center; justify-content:center; }
+.menu-group{
+  display:flex; flex-direction:column; align-items:center;
+  gap:clamp(10px,2.6vh,26px);
+  width:min(96vw,880px);
+  max-height:calc(100dvh - clamp(24px,6vh,56px));
+  padding:clamp(8px,2vh,18px);
+}
+.menu-banner{ width:min(96vw,880px); max-height:48dvh; height:auto; object-fit:contain;
+  filter:drop-shadow(0 12px 22px rgba(43,58,85,.28)); flex:0 0 auto; }
+.menu-box{
+  width:100%; max-width:580px; background:transparent; border:none;
+  border-radius:26px; box-shadow:none;
+  padding:0;
+  display:flex; flex-direction:column; align-items:center; gap:clamp(10px,2vh,18px);
+}
+.level-grid{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(10px,2.4vw,20px); width:100%; }
+.level-card{ appearance:none; cursor:pointer; text-align:center;
+  background:#fff; border:4px solid var(--paper-edge); border-radius:22px;
+  padding:clamp(14px,3vh,28px) clamp(10px,2vw,18px);
+  box-shadow:var(--shadow); transition:transform .1s ease, box-shadow .12s ease, border-color .12s ease;
+  font-family:inherit; color:var(--ink); }
+.level-card:hover{ border-color:var(--army-2); }
+.level-card:active{ transform:translateY(3px); box-shadow:0 4px 0 rgba(43,58,85,.12); }
+.lc-head{ display:flex; align-items:center; justify-content:center; gap:clamp(8px,1.6vw,16px); }
+.lc-emoji{ font-size:clamp(30px,5.4vh,52px); line-height:1; }
+.lc-name{ font-family:"Mali",sans-serif; font-weight:800; font-size:clamp(20px,4vh,32px); }
+.lc-desc{ color:var(--ink-soft); font-weight:700; font-size:clamp(12px,2.1vh,17px); margin-top:4px; line-height:1.3; }
+
+/* Preload */
+.preload-inner{ text-align:center; width:min(420px,86vw); }
+.preload-emoji{ font-size:clamp(40px,9vh,72px); animation:bob 1.4s ease-in-out infinite; }
+.preload-title{ font-family:"Mali",sans-serif; font-weight:800; color:var(--ink);
+  font-size:clamp(20px,4vh,32px); margin:clamp(6px,1.4vh,14px) 0; }
+.preload-bar{ width:100%; height:clamp(14px,2.4vh,22px); background:#fff;
+  border:3px solid var(--paper-edge); border-radius:999px; overflow:hidden; }
+.preload-fill{ width:0%; height:100%; border-radius:999px;
+  background:linear-gradient(90deg,var(--army-1),var(--army-3)); transition:width .2s ease; }
+.preload-pct{ margin-top:8px; font-weight:800; color:var(--ink-soft); }
+
+/* Guide (how + pre-game) */
+.guide-card{ max-width:min(780px,95vw); }
+.guide-rule{ background:#fff7df; border:2px solid var(--paper-edge); border-radius:14px;
+  padding:clamp(8px,1.6vh,14px) clamp(12px,2.2vw,18px); margin:clamp(6px,1.4vh,12px) 0;
+  color:var(--ink); font-weight:700; font-size:clamp(13px,2.2vh,17px); line-height:1.45; }
+.guide-cols{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(10px,2.4vw,20px);
+  text-align:left; margin:clamp(8px,2vh,16px) 0; }
+.guide-col{ background:#fff; border:3px dashed var(--paper-edge); border-radius:18px;
+  padding:clamp(10px,2vh,18px) clamp(12px,2.2vw,18px); }
+.guide-head{ font-family:"Mali",sans-serif; font-weight:800; color:var(--ink);
+  font-size:clamp(14px,2.4vh,19px); margin-bottom:8px; }
+.guide-col .how{ background:transparent; border:none; padding:0; margin:0; }
+.guide-actions{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap;
+  gap:clamp(8px,1.6vw,14px); margin-top:clamp(6px,1.4vh,12px); }
+.btn-cam-icon{ padding:0; width:clamp(52px,7vh,62px); height:clamp(52px,7vh,62px);
+  display:inline-flex; align-items:center; justify-content:center; border-radius:50%; }
+.btn-cam-icon svg{ width:clamp(24px,3.4vh,30px); height:clamp(24px,3.4vh,30px); }
+.btn-cam-icon.cam-on{ background:linear-gradient(180deg,#7fe0a0,#3fb56a) !important; color:#fff !important;
+  border-color:#2f8f50 !important; }
+.cam-note{ color:var(--ink-soft); font-weight:700; font-size:clamp(10px,1.7vh,13px);
+  margin-top:8px; text-align:center; }
+@media (max-width:560px), (max-height:430px){
+  .level-grid{ grid-template-columns:1fr 1fr; }
+  .guide-cols{ grid-template-columns:1fr; }
+  .menu-banner{ max-height:24dvh; }
+}
+
+/* ============================================================
+ * Floating controls (bottom-right): sound popup + fullscreen
+ * ========================================================== */
+.float-controls{ position:fixed;
+  right:calc(12px + env(safe-area-inset-right, 0px));
+  bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+  display:flex; flex-direction:column; gap:8px; z-index:80; }
+.float-controls .iconbtn{ width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; }
+.float-controls .iconbtn[disabled]{ opacity:.55; cursor:wait; }
+.float-controls .iconbtn.on{ background:#eef7ee; border-color:var(--army-2); color:var(--army-1); }
+.vol-control{ position:relative; }
+.vol-control .iconbtn .ic-off{ display:none; }
+.vol-control.muted .iconbtn{ background:#fff0f1; border-color:#e2685f; color:#e2685f; }
+.vol-control.muted .iconbtn .ic-on{ display:none; }
+.vol-control.muted .iconbtn .ic-off{ display:inline-block; }
+.vol-popup{ position:absolute; right:calc(100% + 8px); top:50%;
+  transform:translateY(-50%) scale(.85); transform-origin:right center;
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  background:rgba(255,255,255,.97); border:2px solid rgba(43,58,85,.12); border-radius:24px;
+  box-shadow:var(--shadow-lg); opacity:0; pointer-events:none; visibility:hidden;
+  transition:opacity .15s ease, transform .15s ease, visibility 0s linear .15s; white-space:nowrap; }
+.vol-control.open .vol-popup{ opacity:1; transform:translateY(-50%) scale(1);
+  pointer-events:auto; visibility:visible; transition:opacity .15s ease, transform .15s ease, visibility 0s; }
+.vol-mini{ appearance:none; width:32px; height:32px; border-radius:50%; border:none;
+  background:transparent; color:var(--ink); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; transition:background .15s ease; flex-shrink:0; }
+.vol-mini:hover{ background:rgba(43,58,85,.08); }
+.vol-mini .ic-off{ display:none; }
+.vol-control.muted .vol-mini{ color:#c0392b; }
+.vol-control.muted .vol-mini .ic-on{ display:none; }
+.vol-control.muted .vol-mini .ic-off{ display:inline-block; }
+.vol-popup #volSlider{ appearance:none; -webkit-appearance:none; width:120px; height:6px;
+  background:linear-gradient(to right, var(--army-1) var(--vol-fill,60%), rgba(43,58,85,.18) var(--vol-fill,60%));
+  border-radius:999px; outline:none; cursor:pointer; margin:0; }
+.vol-popup #volSlider::-webkit-slider-thumb{ appearance:none; -webkit-appearance:none;
+  width:16px; height:16px; border-radius:50%; background:var(--army-1); border:2px solid #fff;
+  box-shadow:0 2px 6px -2px rgba(43,58,85,.4); cursor:pointer; transition:transform .12s ease; }
+.vol-popup #volSlider::-webkit-slider-thumb:hover{ transform:scale(1.15); }
+.vol-popup #volSlider::-moz-range-thumb{ width:16px; height:16px; border-radius:50%;
+  background:var(--army-1); border:2px solid #fff; box-shadow:0 2px 6px -2px rgba(43,58,85,.4); cursor:pointer; }
+.vol-control.muted #volSlider{ background:linear-gradient(to right, rgba(43,58,85,.3) var(--vol-fill,0%), rgba(43,58,85,.15) var(--vol-fill,0%)); }
+@media (max-width:480px){ .vol-popup #volSlider{ width:100px; } }
+
+@media (max-height:430px){
+  .banner{ top:clamp(2px,1vh,6px); }
+  .phrase{ font-size:clamp(36px,10.9vh,68px); }
+  .lane{ padding-top:clamp(66px,17vh,128px); }
+  .box-wrap{ aspect-ratio:5/2.6; }
+  .lane + .lane::before{ top:clamp(60px,15vh,118px); height:clamp(34px,9vh,72px); }
+  .card{ padding:14px 20px; border-radius:22px; }
+  .how{ display:none; }
+}
+@media (max-height:330px){
+  .banner .prompt{ display:none; }
+  .phrase{ font-size:clamp(29px,11.7vh,52px); }
+  .slot .txt{ font-size:clamp(23px,8.5vh,42px); }
+  .settle{ display:none; }
+  .mascot{ display:none; }
+  .lane{ padding-top:clamp(52px,15vh,100px); }
+  .lane + .lane::before{ top:clamp(48px,13vh,92px); height:clamp(28px,8vh,56px); }
+  .soldier{ bottom:clamp(20px,7vh,60px); }
+}
+</style>
+</head>
+
+<body class="pre-reveal">
+
+<!-- shared SVG defs: fire gradient for the hold-progress stripe -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="fireGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffe46b"/>
+      <stop offset="45%" stop-color="#ff8a18"/>
+      <stop offset="100%" stop-color="#ff2d00"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ===================== Camera layers (behind everything) ===================== -->
+<video id="cameraMirror" playsinline muted autoplay></video>
+<canvas id="camCanvas"></canvas>
+<div id="playerTag">🪖 หนูคือทหาร!</div>
+<div id="zoneWarning">ถอยออกมาให้กล้องเห็นทั้งตัวนะ 👣</div>
+
+<!-- ===================== Floating controls (bottom-right): camera + sound + fullscreen ===================== -->
+<div class="float-controls" id="floatControls">
+  <button class="iconbtn" id="btnCamFloat" title="เปิด/ปิดกล้อง" aria-pressed="false" aria-label="กล้อง">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+  </button>
+  <div class="vol-control" id="volControl">
+    <button class="iconbtn" id="btnMute" title="ปรับเสียง" aria-pressed="false" aria-label="เสียง" aria-expanded="false">
+      <svg class="ic-on"  width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+      <svg class="ic-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+    </button>
+    <div class="vol-popup" id="volPopup" role="group" aria-label="ปรับระดับเสียง">
+      <button class="vol-mini" id="btnVolMute" type="button" title="ปิด/เปิดเสียง" aria-label="ปิด/เปิดเสียง">
+        <svg class="ic-on"  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        <svg class="ic-off" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+      </button>
+      <input type="range" id="volSlider" min="0" max="100" value="60" step="1" aria-label="ระดับเสียง">
+    </div>
+  </div>
+  <button class="iconbtn" id="btnFs" title="เต็มจอ" aria-pressed="false" aria-label="เต็มจอ">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4"></path><path d="M21 7V3h-4"></path><path d="M3 17v4h4"></path><path d="M21 17v4h-4"></path></svg>
+  </button>
+</div>
+
+<div id="redFlash"></div>
+
+<!-- ===================== Game ===================== -->
+<div id="app">
+  <div class="scene">
+    <div class="sun"></div>
+    <div class="cloud" style="width:64px; top:12%; left:14%;"></div>
+    <div class="cloud" style="width:90px; top:8%; left:52%;"></div>
+    <div class="cloud" style="width:54px; top:20%; left:33%;"></div>
+    <div class="hill l"></div>
+    <div class="hill r"></div>
+    <div class="ground"></div>
+  </div>
+
+  <div class="hud">
+    <div class="pill" id="pillScore"><span class="ico">⭐</span><span class="val" id="hudScore">0</span></div>
+    <div class="pill"><span class="ico">📝</span><span class="val" id="hudCount">1/10</span></div>
+    <div class="pill"><span class="ico">⏱️</span><span class="val" id="hudTime">1:30</span></div>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="btnHome" title="กลับเมนูหลัก">🏠</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="banner">
+      <div class="phrase">
+        <span class="art" id="qArt">A</span>
+        <span class="noun" id="qWord">dog</span>
+      </div>
+    </div>
+
+    <!-- Lanes are built dynamically per level by buildLanes() -->
+    <div class="lanes" id="lanes"></div>
+
+    <div class="feedback" id="feedback"></div>
+    <div class="dizzy" id="dizzy">💫</div>
+
+    <!-- Soldier walks on the ground -->
+    <div class="soldier" id="soldier">
+      <div class="soldier-inner">
+        <svg viewBox="0 0 120 176" aria-hidden="true">
+          <ellipse cx="60" cy="170" rx="33" ry="6" fill="rgba(43,58,85,.18)"/>
+          <!-- legs -->
+          <rect x="45" y="118" width="13" height="36" rx="6.5" fill="#3f7d4f"/>
+          <rect x="62" y="118" width="13" height="36" rx="6.5" fill="#367045"/>
+          <!-- boots -->
+          <path d="M40 150 h20 v9 q0 6 -7 6 h-17 q-5 0 -5 -5 q0 -7 9 -10z" fill="#3a2a1f"/>
+          <path d="M61 150 h17 q9 3 9 10 q0 5 -5 5 h-17 q-7 0 -7 -6z" fill="#2f221a"/>
+          <!-- body / jacket -->
+          <path d="M40 78 Q36 70 48 66 L72 66 Q84 70 80 78 L82 120 Q60 128 38 120 Z" fill="#4c9460"/>
+          <path d="M40 78 Q36 70 48 66 L60 66 L60 124 Q48 124 38 120 Z" fill="#54a36b"/>
+          <!-- belt -->
+          <rect x="37" y="112" width="46" height="11" rx="3" fill="#6b4a2a"/>
+          <rect x="55" y="110" width="12" height="15" rx="2" fill="#ecc14e"/>
+          <rect x="58" y="113" width="6" height="9" rx="1.5" fill="#b88a2e"/>
+          <!-- buttons -->
+          <circle cx="60" cy="80" r="2.6" fill="#ecc14e"/>
+          <circle cx="60" cy="92" r="2.6" fill="#ecc14e"/>
+          <circle cx="60" cy="104" r="2.6" fill="#ecc14e"/>
+          <!-- left arm (down) -->
+          <path d="M42 80 Q30 92 30 108" stroke="#4c9460" stroke-width="13" stroke-linecap="round" fill="none"/>
+          <circle cx="30" cy="110" r="7.5" fill="#f3c89c"/>
+          <!-- right arm (saluting) -->
+          <path d="M78 80 Q92 78 90 60" stroke="#54a36b" stroke-width="13" stroke-linecap="round" fill="none"/>
+          <circle cx="89" cy="58" r="7.5" fill="#f3c89c"/>
+          <!-- head -->
+          <circle cx="60" cy="44" r="24" fill="#f7d2a6"/>
+          <circle cx="50.5" cy="46" r="3.2" fill="#f0b07e"/>
+          <circle cx="69.5" cy="46" r="3.2" fill="#f0b07e"/>
+          <!-- eyes -->
+          <circle cx="51" cy="42" r="3.4" fill="#2b3a55"/>
+          <circle cx="69" cy="42" r="3.4" fill="#2b3a55"/>
+          <circle cx="52.2" cy="40.8" r="1.1" fill="#fff"/>
+          <circle cx="70.2" cy="40.8" r="1.1" fill="#fff"/>
+          <!-- smile -->
+          <path d="M52 51 Q60 58 68 51" stroke="#c46a4a" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <!-- helmet -->
+          <path d="M34 38 Q34 14 60 13 Q86 14 86 38 Z" fill="#3f7d4f"/>
+          <path d="M34 38 Q34 16 60 14 Q70 14 76 20 Q40 22 36 40 Z" fill="#4f9264" opacity=".8"/>
+          <rect x="32" y="37" width="56" height="8" rx="4" fill="#367045"/>
+          <!-- star badge -->
+          <path d="M60 19 l2.4 5 5.4 .4 -4.1 3.6 1.3 5.3 -5-3 -5 3 1.3-5.3 -4.1-3.6 5.4-.4z" fill="#ecc14e"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<!-- ===================== SHELL: Splash ===================== -->
+<div class="overlay show shell" id="splashOverlay">
+  <div class="splash-inner">
+    <img class="splash-banner" src="image/banner.png" alt="แบนเนอร์เกม">
+    <button class="btn army big" id="btnEnter">เข้าสู่เกม ▶</button>
+  </div>
+</div>
+
+<!-- ===================== SHELL: Menu / Level select ===================== -->
+<div class="overlay shell" id="menuOverlay">
+  <div class="menu-group">
+    <img class="menu-banner" src="image/banner.png" alt="แบนเนอร์เกม">
+    <div class="menu-box">
+      <div class="level-grid" id="levelGrid">
+        <button class="level-card" data-level="1">
+          <div class="lc-head"><span class="lc-emoji">🎖️</span><span class="lc-name">ด่าน 1</span></div>
+          <div class="lc-desc">A · An · The</div>
+        </button>
+        <button class="level-card" data-level="2">
+          <div class="lc-head"><span class="lc-emoji">🏅</span><span class="lc-name">ด่าน 2</span></div>
+          <div class="lc-desc">A · An · The · Non Articles</div>
+        </button>
+      </div>
+      <button class="btn alt" id="btnHowGlobal">วิธีเล่น ❓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHELL: Preload ===================== -->
+<div class="overlay shell" id="preloadOverlay">
+  <div class="card preload-inner">
+    <div class="preload-emoji">⛺</div>
+    <h2 class="preload-title">กำลังเตรียมสนาม…</h2>
+    <div class="preload-bar"><div class="preload-fill" id="preloadFill"></div></div>
+    <div class="preload-pct" id="preloadPct">0%</div>
+  </div>
+</div>
+
+<!-- ===================== SHELL: How-to (opened from menu, NO start button) ===================== -->
+<div class="overlay shell" id="howOverlay">
+  <div class="card guide-card">
+    <h1 class="title">วิธีเล่น</h1>
+    <div class="guide-cols">
+      <div class="guide-col">
+        <div class="guide-head">📱 โหมดปกติ</div>
+        <ol class="how">
+          <li>อ่านคำด้านบน เช่น <b class="art">a</b> <b class="word">apple</b></li>
+          <li>คลิกกล่องคำตอบ หรือกดปุ่มลูกศร <b>← →</b> เพื่อเลือกคำตอบที่ต้องการ</li>
+          <li>ยืนค้างให้ครบเวลา เพื่อยืนยันคำตอบ</li>
+        </ol>
+      </div>
+      <div class="guide-col">
+        <div class="guide-head">📷 โหมดกล้อง</div>
+        <ol class="how">
+          <li>เปิดกล้องแล้วอนุญาตให้ใช้กล้อง</li>
+          <li><b>ผู้เล่นคือพลทหาร ยืนให้ห่างกล้อง 1-2 เมตร</li>
+          <li><b>ขยับตัวไปซ้าย-ขวา</b> ให้ตรงกับคำตอบ</li>
+          <li>ยืนค้างให้ครบเวลา เพื่อยืนยันคำตอบ</li>
+        </ol>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn army" id="btnHowBack">⬅ กลับ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SHELL: Pre-game Guide (with camera + START) ===================== -->
+<div class="overlay shell" id="guideOverlay">
+  <div class="card guide-card">
+    <h1 class="title" id="guideLevelTitle">ด่าน 1</h1>
+    <div class="guide-rule" id="guideRule"></div>
+    <div class="guide-cols">
+      <div class="guide-col">
+        <div class="guide-head">📱 โหมดปกติ</div>
+        <ol class="how">
+          <li>คลิก/กดลูกศร เพื่อเลือกคำตอบ</li>
+          <li>ยืนค้างให้ครบเวลา <b>เพื่อยืนยันคำตอบ</b> </li>
+        </ol>
+      </div>
+      <div class="guide-col">
+        <div class="guide-head">📷 โหมดกล้อง</div>
+        <ol class="how">
+          <li>ขยับตัว ซ้าย-ขวา <b>ให้ตรงช่องคำตอบที่เลือก</b> </li>
+          <li>ยืนค้างให้ครบเวลา <b>เพื่อยืนยันคำตอบ</b> </li>
+        </ol>
+      </div>
+    </div>
+    <div class="guide-actions">
+      <button class="btn secondary btn-cam-icon" id="btnCam" type="button" aria-label="เปิด/ปิดโหมดกล้อง" title="เปิด/ปิดโหมดกล้อง">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+      </button>
+      <button class="btn alt" id="btnGuideBack">⬅ กลับ</button>
+      <button class="btn army" id="btnGuideStart">เริ่มเกม ▶</button>
+    </div>
+    <div class="cam-note" id="camNote"></div>
+  </div>
+</div>
+
+<!-- ===================== Original Start screen (kept, not shown) ===================== -->
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <div class="mascot">
+      <svg viewBox="0 0 120 176" aria-hidden="true">
+        <ellipse cx="60" cy="170" rx="33" ry="6" fill="rgba(43,58,85,.18)"/>
+        <rect x="45" y="118" width="13" height="36" rx="6.5" fill="#3f7d4f"/>
+        <rect x="62" y="118" width="13" height="36" rx="6.5" fill="#367045"/>
+        <path d="M40 150 h20 v9 q0 6 -7 6 h-17 q-5 0 -5 -5 q0 -7 9 -10z" fill="#3a2a1f"/>
+        <path d="M61 150 h17 q9 3 9 10 q0 5 -5 5 h-17 q-7 0 -7 -6z" fill="#2f221a"/>
+        <path d="M40 78 Q36 70 48 66 L72 66 Q84 70 80 78 L82 120 Q60 128 38 120 Z" fill="#4c9460"/>
+        <rect x="37" y="112" width="46" height="11" rx="3" fill="#6b4a2a"/>
+        <rect x="55" y="110" width="12" height="15" rx="2" fill="#ecc14e"/>
+        <circle cx="60" cy="80" r="2.6" fill="#ecc14e"/><circle cx="60" cy="92" r="2.6" fill="#ecc14e"/><circle cx="60" cy="104" r="2.6" fill="#ecc14e"/>
+        <path d="M42 80 Q30 92 30 108" stroke="#4c9460" stroke-width="13" stroke-linecap="round" fill="none"/>
+        <circle cx="30" cy="110" r="7.5" fill="#f3c89c"/>
+        <path d="M78 80 Q92 78 90 60" stroke="#54a36b" stroke-width="13" stroke-linecap="round" fill="none"/>
+        <circle cx="89" cy="58" r="7.5" fill="#f3c89c"/>
+        <circle cx="60" cy="44" r="24" fill="#f7d2a6"/>
+        <circle cx="51" cy="42" r="3.4" fill="#2b3a55"/><circle cx="69" cy="42" r="3.4" fill="#2b3a55"/>
+        <circle cx="52.2" cy="40.8" r="1.1" fill="#fff"/><circle cx="70.2" cy="40.8" r="1.1" fill="#fff"/>
+        <path d="M52 51 Q60 58 68 51" stroke="#c46a4a" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M34 38 Q34 14 60 13 Q86 14 86 38 Z" fill="#3f7d4f"/>
+        <rect x="32" y="37" width="56" height="8" rx="4" fill="#367045"/>
+        <path d="M60 19 l2.4 5 5.4 .4 -4.1 3.6 1.3 5.3 -5-3 -5 3 1.3-5.3 -4.1-3.6 5.4-.4z" fill="#ecc14e"/>
+      </svg>
+    </div>
+    <h1 class="title">ทหารน้อย A / An / The</h1>
+    <p class="subtitle">ช่วยทหารน้อยเลือก <b class="a">A</b> · <b class="an">An</b> · <b class="the">The</b></p>
+    <ol class="how">
+      <li>อ่านคำที่ปรากฏด้านบน เช่น <b class="art">a</b> <b class="word">apple</b></li>
+      <li>แตะกล่อง <b>A / An / The</b> หรือกดปุ่มลูกศร <b>← →</b> เพื่อให้ทหารเดินไปที่กล่อง</li>
+      <li>ยืนค้างไว้บนกล่อง — เมื่อเส้นเขียววิ่งครบรอบ คำตอบจะถูกเลือก!</li>
+      <li>ใช้ <b class="art">a</b> นำหน้าคำที่ขึ้นต้นด้วย <i>เสียงพยัญชนะ</i>, <b class="art">an</b> นำหน้า <i>เสียงสระ</i>, <b class="art">the</b> ใช้กับสิ่งที่มีเพียง <i>หนึ่งเดียว</i></li>
+    </ol>
+    <button class="btn army" id="btnStart">เริ่มเล่น ▶</button>
+  </div>
+</div>
+
+<!-- ===================== Countdown ===================== -->
+<div class="overlay" id="countdown">
+  <div class="cd-num" id="cdNum">3</div>
+</div>
+
+<!-- ===================== Result ===================== -->
+<div class="overlay" id="endOverlay">
+  <div class="card">
+    <h1 class="title" id="endTitle">เยี่ยมมาก!</h1>
+    <div class="stars" id="endStars">⭐⭐⭐</div>
+    <p class="subtitle" id="endMsg">หนูเป็นฮีโร่เรื่อง a/an/the!</p>
+    <div class="stats">
+      <div class="stat"><div class="n" id="endScore">0</div><div class="l">คะแนน</div></div>
+      <div class="stat"><div class="n" id="endCorrect">0/10</div><div class="l">ตอบถูก</div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn army" id="btnAgain">เล่นอีกครั้ง 🔄</button>
+      <button class="btn alt" id="btnMenu">เมนูหลัก 🏠</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Rotate (landscape only) ===================== -->
+<div id="rotate">
+  <svg class="phone" viewBox="0 0 100 100" aria-hidden="true">
+    <rect x="30" y="8" width="40" height="84" rx="9" fill="#fff" stroke="#2b3a55" stroke-width="5"/>
+    <rect x="30" y="20" width="40" height="58" fill="#bdeaff"/>
+    <circle cx="50" cy="85" r="3.4" fill="#2b3a55"/>
+    <path d="M82 50 a26 26 0 0 0 -22 -25" fill="none" stroke="#ff6b54" stroke-width="5" stroke-linecap="round"/>
+    <polygon points="83,40 88,52 75,52" fill="#ff6b54"/>
+  </svg>
+  <h2>กรุณาหมุนหน้าจอ</h2>
+  <p>เกมนี้เล่นในแนวนอนเท่านั้น หมุนเครื่องเป็นแนวนอนเพื่อเริ่มเล่นนะ! 🔄</p>
+</div>
+
+<script>
+/* =======================================================================
+ * Article Cadet — A / An / The
+ * ===================================================================== */
+(function(){
+  "use strict";
+
+  /* ---------- word bank ---------- */
+  const BANK = [
+    // a  (consonant sound)
+    {w:"boy",a:"a",e:"👦"},{w:"dog",a:"a",e:"🐶"},{w:"cat",a:"a",e:"🐱"},
+    {w:"ball",a:"a",e:"⚽"},{w:"book",a:"a",e:"📖"},{w:"car",a:"a",e:"🚗"},
+    {w:"frog",a:"a",e:"🐸"},{w:"hat",a:"a",e:"🎩"},{w:"cup",a:"a",e:"🥤"},
+    {w:"king",a:"a",e:"🤴"},{w:"lion",a:"a",e:"🦁"},{w:"bird",a:"a",e:"🐦"},
+    {w:"fish",a:"a",e:"🐟"},{w:"banana",a:"a",e:"🍌"},{w:"house",a:"a",e:"🏠"},
+    {w:"tree",a:"a",e:"🌳"},{w:"pencil",a:"a",e:"✏️"},{w:"tiger",a:"a",e:"🐯"},
+    {w:"bear",a:"a",e:"🐻"},{w:"flower",a:"a",e:"🌸"},{w:"key",a:"a",e:"🔑"},
+    // an (vowel sound)
+    {w:"apple",a:"an",e:"🍎"},{w:"orange",a:"an",e:"🍊"},{w:"egg",a:"an",e:"🥚"},
+    {w:"umbrella",a:"an",e:"☂️"},{w:"elephant",a:"an",e:"🐘"},{w:"ant",a:"an",e:"🐜"},
+    {w:"owl",a:"an",e:"🦉"},{w:"octopus",a:"an",e:"🐙"},{w:"onion",a:"an",e:"🧅"},
+    {w:"eagle",a:"an",e:"🦅"},{w:"ice cream",a:"an",e:"🍦"},{w:"island",a:"an",e:"🏝️"},
+    {w:"alligator",a:"an",e:"🐊"},{w:"astronaut",a:"an",e:"👩‍🚀"},{w:"envelope",a:"an",e:"✉️"},
+    {w:"igloo",a:"an",e:"🛖"},
+    // the (only one / unique thing)
+    {w:"sun",a:"the",e:"☀️"},{w:"moon",a:"the",e:"🌙"},{w:"sky",a:"the",e:"🌤️"},
+    {w:"sea",a:"the",e:"🌊"},{w:"earth",a:"the",e:"🌍"},{w:"world",a:"the",e:"🗺️"},
+    {w:"universe",a:"the",e:"🌌"},{w:"rainbow",a:"the",e:"🌈"},{w:"jungle",a:"the",e:"🌴"},
+    {w:"desert",a:"the",e:"🏜️"},{w:"wind",a:"the",e:"💨"},
+    {w:"beach",a:"the",e:"🏖️"},{w:"forest",a:"the",e:"🌲"},{w:"mountains",a:"the",e:"⛰️"},
+    {w:"stars",a:"the",e:"⭐"},{w:"river",a:"the",e:"🏞️"},{w:"internet",a:"the",e:"🌐"},
+    {w:"alphabet",a:"the",e:"🔤"},{w:"planet",a:"the",e:"🪐"}
+  ];
+
+  const FALL_OBJECTS = ["🪖","💣","📦","💣","🧨","🪵"];
+
+  /* ---------- LEVEL 2 word bank (adds the "no article / —" category) ---------- */
+  const BANK_L2 = [
+    // a  (consonant sound)
+    {w:"dog",a:"a",e:"🐶"},{w:"cat",a:"a",e:"🐱"},{w:"ball",a:"a",e:"⚽"},
+    {w:"book",a:"a",e:"📖"},{w:"car",a:"a",e:"🚗"},{w:"hat",a:"a",e:"🎩"},
+    {w:"frog",a:"a",e:"🐸"},{w:"king",a:"a",e:"🤴"},{w:"pencil",a:"a",e:"✏️"},
+    // an (vowel sound)
+    {w:"apple",a:"an",e:"🍎"},{w:"orange",a:"an",e:"🍊"},{w:"egg",a:"an",e:"🥚"},
+    {w:"umbrella",a:"an",e:"☂️"},{w:"elephant",a:"an",e:"🐘"},{w:"ant",a:"an",e:"🐜"},
+    {w:"owl",a:"an",e:"🦉"},{w:"igloo",a:"an",e:"🛖"},
+    // the (only one / unique thing)
+    {w:"sun",a:"the",e:"☀️"},{w:"moon",a:"the",e:"🌙"},{w:"sky",a:"the",e:"🌤️"},
+    {w:"sea",a:"the",e:"🌊"},{w:"earth",a:"the",e:"🌍"},
+    {w:"universe",a:"the",e:"🌌"},{w:"rainbow",a:"the",e:"🌈"},{w:"jungle",a:"the",e:"🌴"},
+    {w:"desert",a:"the",e:"🏜️"},{w:"wind",a:"the",e:"💨"},
+    {w:"beach",a:"the",e:"🏖️"},{w:"forest",a:"the",e:"🌲"},{w:"mountains",a:"the",e:"⛰️"},
+    {w:"stars",a:"the",e:"⭐"},{w:"river",a:"the",e:"🏞️"},{w:"internet",a:"the",e:"🌐"},
+    {w:"alphabet",a:"the",e:"🔤"},{w:"planet",a:"the",e:"🪐"},
+    // none — uncountable / plural / proper noun  (no a/an/the)
+    {w:"water",a:"none",e:"💧"},{w:"milk",a:"none",e:"🥛"},{w:"rice",a:"none",e:"🍚"},
+    {w:"money",a:"none",e:"💰"},{w:"music",a:"none",e:"🎵"},{w:"bread",a:"none",e:"🍞"},
+    {w:"juice",a:"none",e:"🧃"},{w:"snow",a:"none",e:"❄️"},{w:"honey",a:"none",e:"🍯"},
+    {w:"soup",a:"none",e:"🍲"},{w:"tea",a:"none",e:"🍵"},{w:"shoes",a:"none",e:"👟"},
+    {w:"Monday",a:"none",e:"📅"},
+    {w:"cheese",a:"none",e:"🧀"},{w:"butter",a:"none",e:"🧈"},{w:"coffee",a:"none",e:"☕"},
+    {w:"chocolate",a:"none",e:"🍫"},{w:"salt",a:"none",e:"🧂"},{w:"sugar",a:"none",e:"🍬"},
+    {w:"ice",a:"none",e:"🧊"},{w:"rain",a:"none",e:"🌧️"},{w:"soap",a:"none",e:"🧼"},
+    {w:"socks",a:"none",e:"🧦"},{w:"glasses",a:"none",e:"👓"},{w:"scissors",a:"none",e:"✂️"},
+    {w:"Thailand",a:"none",e:"🇹🇭"}
+  ];
+
+  /* ---------- levels (level 1 = original game, untouched) ---------- */
+  const LEVELS = {
+    1:{ keys:["a","an","the"],        txt:["A","An","The"],     bank:BANK },
+    2:{ keys:["a","an","the","none"], txt:["A","An","The",""], bank:BANK_L2 }
+  };
+  let ACTIVE = LEVELS[1];
+
+  let ART_KEY = ACTIVE.keys.slice();
+  let ART_TXT = ACTIVE.txt.slice();
+  const HOLD_MS = 4000;     // time the stripe takes to wrap all the way around
+  const TOTAL   = 10;
+  const TIME    = 90;
+
+  /* ---------- state ---------- */
+  const G = {
+    state:"start", paused:false, sound:true, volume:0.6,
+    level:1, nLanes:3, camera:false,
+    score:0, qIndex:0, correct:0, timeLeft:TIME,
+    questions:[], cur:null,
+    pool:null, poolLevel:0, lastArticle:null,
+    slot:1, armed:false, holdStart:0, locked:false, _tickStage:-1,
+    raf:0, timerId:0, centers:[16.66,50,83.33]
+  };
+
+  /* ---------- DOM ---------- */
+  const $ = (s)=>document.querySelector(s);
+  const UI = {
+    stage:$("#stage"),
+    app:$("#app"),
+    redFlash:$("#redFlash"),
+    lanesWrap:$("#lanes"),
+    lanes:[], slots:[], progs:[],
+    soldier:$("#soldier"), dizzy:$("#dizzy"), feedback:$("#feedback"),
+    qArt:$("#qArt"), qWord:$("#qWord"),
+    toast:$("#toast"),
+    hudScore:$("#hudScore"), hudCount:$("#hudCount"), hudTime:$("#hudTime"),
+    pillScore:$("#pillScore"),
+    start:$("#startOverlay"), countdown:$("#countdown"), cdNum:$("#cdNum"),
+    end:$("#endOverlay"), endTitle:$("#endTitle"), endStars:$("#endStars"),
+    endMsg:$("#endMsg"), endScore:$("#endScore"), endCorrect:$("#endCorrect"),
+    btnStart:$("#btnStart"), btnAgain:$("#btnAgain"), btnMenu:$("#btnMenu"),
+    btnMute:$("#btnMute"), btnHome:$("#btnHome")
+  };
+  const show = (el)=>el.classList.add("show");
+  const hide = (el)=>el.classList.remove("show");
+
+  /* Build the answer lanes for the active level (3 for L1, 4 for L2).
+     Markup mirrors the original hand-written lanes exactly. */
+  function buildLanes(){
+    const n = ART_TXT.length;
+    G.nLanes = n;
+    let html = "";
+    for(let i=0;i<n;i++){
+      html +=
+        '<div class="lane" data-i="'+i+'">'+
+          '<div class="box-wrap"><div class="slot">'+
+            '<svg class="ring" viewBox="0 0 100 48">'+
+              '<rect class="track" pathLength="100"></rect>'+
+              '<path class="prog prog-L" pathLength="100"></path>'+
+              '<path class="prog prog-R" pathLength="100"></path>'+
+            '</svg>'+
+            '<span class="txt">'+ART_TXT[i]+'</span>'+
+          '</div></div>'+
+          '<div class="settle"><i></i><i></i><i></i></div>'+
+        '</div>';
+    }
+    UI.lanesWrap.innerHTML = html;
+    UI.lanesWrap.setAttribute("data-n", n);
+    refreshLaneRefs();
+    bindLaneInput();
+    // default cursor position: middle-ish lane
+    G.slot = Math.min(Math.floor(n/2), n-1);
+  }
+  function refreshLaneRefs(){
+    UI.lanes = Array.from(UI.lanesWrap.querySelectorAll(".lane"));
+    UI.slots = Array.from(UI.lanesWrap.querySelectorAll(".slot"));
+    UI.progs = UI.slots.map(s=>s.querySelectorAll(".prog"));
+  }
+  function bindLaneInput(){
+    UI.lanes.forEach((ln)=>{
+      ln.addEventListener("pointerdown",(e)=>{
+        e.preventDefault();
+        setSlot(parseInt(ln.dataset.i,10), true);
+      });
+    });
+  }
+
+  /* ---------- tiny generated sound ---------- */
+  let AC=null;
+  function beep(freq,dur,type,when){
+    if(!G.sound) return;
+    const vol = (typeof G.volume==="number") ? G.volume : 0.6;
+    if(vol<=0) return;
+    try{
+      AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+      const t0 = AC.currentTime + (when||0);
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = type||"sine"; o.frequency.value = freq;
+      o.connect(g); g.connect(AC.destination);
+      const peak = Math.max(0.0002, 0.22*vol);
+      g.gain.setValueAtTime(0.0001,t0);
+      g.gain.exponentialRampToValueAtTime(peak,t0+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  const sMove   = ()=>beep(420,0.05,"square");
+  const sTick   = ()=>beep(720,0.04,"sine");
+  const sGood   = ()=>{ beep(660,0.12,"triangle",0); beep(880,0.16,"triangle",0.1); beep(1175,0.2,"triangle",0.22); };
+  const sBad    = ()=>{ beep(200,0.18,"sawtooth",0); beep(150,0.22,"sawtooth",0.12); };
+  const sBonk   = ()=>{ beep(180,0.1,"square",0); beep(140,0.1,"square",0.08); };
+  const sFinish = ()=>{ [523,659,784,1046].forEach((f,i)=>beep(f,0.22,"triangle",i*0.13)); };
+
+  /* ---------- file-based sound effects (mp3 files in /image) ---------- */
+  const SFX = {
+    correct: new Audio("image/correct.mp3"),
+    wrong:   new Audio("image/wrong.mp3"),
+    win:     new Audio("image/win.mp3")
+  };
+  Object.values(SFX).forEach(a=>{ try{ a.preload="auto"; }catch(e){} });
+  function playSfx(name){
+    if(!G.sound) return null;
+    const vol = (typeof G.volume==="number") ? G.volume : 0.6;
+    if(vol<=0) return null;
+    const a = SFX[name];
+    if(!a) return null;
+    try{ a.currentTime = 0; a.volume = Math.max(0, Math.min(1, vol)); a.play().catch(()=>{}); }catch(e){}
+    return a;
+  }
+
+  /* ---------- per-item voice clips (split by article, shared by both levels) ----------
+     The FOLDER encodes the article, so the file name is just the bare word:
+       a   -> Asound/<word>.mp3       e.g. a bird   -> Asound/bird.mp3
+       an  -> Ansound/<word>.mp3      e.g. an apple -> Ansound/apple.mp3 ; an ice cream -> Ansound/icecream.mp3
+       the -> thesound/<word>.mp3     e.g. the sun  -> thesound/sun.mp3
+       none-> nonsound/<word>.mp3     e.g. water    -> nonsound/water.mp3
+     (Spoken content is still the full phrase, e.g. apple.mp3 says "an apple".)
+     Both level 1 and level 2 read from these same folders.
+     Missing file = silent (no error). */
+  function voiceSlug(w){ return w.toLowerCase().replace(/\s+/g, ""); }   // "ice cream" -> icecream
+  function voiceDir(a){
+    return a==="a" ? "Asound" : a==="an" ? "Ansound" : a==="the" ? "thesound" : "nonsound";
+  }
+  function preloadVoice(item){
+    if(!item) return null;
+    try{ const el = new Audio(voiceDir(item.a) + "/" + voiceSlug(item.w) + ".mp3"); el.preload = "auto"; return el; }
+    catch(e){ return null; }
+  }
+  let _voiceEl = null, _voiceGen = 0;
+  function stopVoice(){
+    _voiceGen++;                                   // invalidate any pending chained play
+    if(_voiceEl){ try{ _voiceEl.pause(); _voiceEl.currentTime = 0; }catch(e){} }
+  }
+  const VOICE_GAIN = 1.3;         // per-question correct voice, +30%
+  function playVoice(el){
+    if(!G.sound || !el) return;
+    const vol = (typeof G.volume==="number") ? G.volume : 0.6;
+    if(vol<=0) return;
+    try{ el.currentTime = 0; el.volume = Math.max(0, Math.min(1, vol*VOICE_GAIN)); el.play().catch(()=>{}); }catch(e){}
+    _voiceEl = el;
+  }
+  /* play correct.mp3 first, then the item's own voice once the effect ends */
+  function playCorrectThenVoice(voiceEl){
+    const gen = _voiceGen;
+    const fx = playSfx("correct");
+    if(!voiceEl) return;
+    let done = false;
+    const go = ()=>{ if(done || gen!==_voiceGen) return; done = true; playVoice(voiceEl); };
+    if(fx){
+      fx.addEventListener("ended", go, { once:true });
+      const dur = (isFinite(fx.duration) && fx.duration>0) ? fx.duration*1000 : 600;
+      setTimeout(go, dur + 150);                   // fallback if 'ended' never fires
+    }else{
+      setTimeout(go, 80);                          // effect muted/unavailable
+    }
+  }
+
+  /* ---------- background music (image/bgm.mp3, loops) ----------
+     Starts on game start, loops forever, and follows the bottom-right
+     volume slider / mute (via __game.setVolume / setMuted below). */
+  let BGM = null, _bgmStarted = false;
+  const BGM_GAIN = 0.685;         // music under voice/effects (lowered another 30%)
+  function updateBgmVolume(){
+    if(!BGM) return;
+    const vol = (typeof G.volume==="number") ? G.volume : 0.6;
+    const on  = G.sound && vol > 0;
+    BGM.volume = on ? Math.min(1, vol*BGM_GAIN) : 0;
+    try{ if(on){ if(BGM.paused) BGM.play().catch(()=>{}); } else { BGM.pause(); } }catch(e){}
+  }
+  function startBgm(){
+    if(_bgmStarted){ updateBgmVolume(); return; }   // already running — don't restart/stack
+    try{
+      BGM = new Audio("image/bgm.mp3");
+      BGM.loop = true; BGM.preload = "auto";
+      _bgmStarted = true;
+      updateBgmVolume();                            // sets volume + plays if not muted
+    }catch(e){}
+  }
+  function pauseBgm(){ if(BGM){ try{ BGM.pause(); }catch(e){} } }   // e.g. while the win jingle plays
+  function resumeBgm(){
+    if(!BGM){ startBgm(); return; }
+    try{ BGM.currentTime = 0; }catch(e){}            // play again from the top
+    updateBgmVolume();                               // resumes if not muted
+  }
+
+  /* ---------- helpers ---------- */
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+  /* Question pool: every word is used once before any repeats (then the pool
+     reshuffles and cycles). Also avoids two questions in a row with the same
+     correct article (e.g. A then A) — the next draw picks a different article. */
+  function rebuildPool(){ G.pool = shuffle(ACTIVE.bank); G.poolLevel = G.level; }
+  function drawQuestion(){
+    if(!G.pool || !G.pool.length || G.poolLevel !== G.level) rebuildPool();
+    let idx = 0;
+    if(G.lastArticle != null){
+      const k = G.pool.findIndex(q => q.a !== G.lastArticle);   // prefer a different article
+      if(k >= 0) idx = k;
+    }
+    const q = G.pool.splice(idx, 1)[0];
+    G.lastArticle = q.a;
+    if(!G.pool.length) rebuildPool();        // pool exhausted → start a fresh cycle
+    return q;
+  }
+  function isPortrait(){
+    const mm = window.matchMedia && window.matchMedia("(orientation: portrait)").matches;
+    return mm || (window.innerHeight > window.innerWidth);
+  }
+  function fmtTime(s){
+    const m = Math.floor(s/60), ss = s%60;
+    return m + ":" + (ss<10?"0":"") + ss;
+  }
+  function setHUD(){
+    UI.hudScore.textContent = G.score;
+    UI.hudCount.textContent = Math.min(G.qIndex+1,TOTAL) + "/" + TOTAL;
+    UI.hudTime.textContent  = fmtTime(Math.max(0,G.timeLeft));
+  }
+  function capital(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+  function phrase(a,w){ return (a==="none") ? w : (capital(a)+" "+w); }
+  function reason(a){
+    if(a==="a")   return "ใช้ ‘a’ นำหน้าเสียงพยัญชนะ";
+    if(a==="an")  return "ใช้ ‘an’ นำหน้าเสียงสระ";
+    if(a==="none") return "คำนี้ไม่ต้องใส่ a/an/the (นับไม่ได้/พหูพจน์/ชื่อเฉพาะ)";
+    return "ใช้ ‘the’ กับสิ่งที่มีเพียงหนึ่งเดียว";
+  }
+
+  /* ---------- soldier placement ---------- */
+  function layoutSoldier(){
+    const stageRect = UI.stage.getBoundingClientRect();
+    if(!stageRect.width) return;
+    if(!UI.lanes || !UI.lanes.length) return;   // lanes not built yet (e.g. during countdown)
+    G.centers = UI.lanes.map(ln=>{
+      const r = ln.getBoundingClientRect();
+      return ((r.left - stageRect.left) + r.width/2) / stageRect.width * 100;
+    });
+    placeSoldier(false);
+    layoutSlots();
+  }
+
+  /* Size the SVG so the rounded-rect "border" matches the slot pixel-perfect.
+     The Hold progress is drawn as TWO paths that both start at the top-centre
+     and run to the bottom-centre — one clockwise (right half), one counter
+     -clockwise (left half) — so the stripe grows symmetrically from the centre. */
+  function layoutSlots(){
+    const BW = 7, R = 22;
+    UI.slots.forEach(slot=>{
+      const w = slot.offsetWidth, h = slot.offsetHeight;
+      if(!w || !h) return;
+      const svg = slot.querySelector(".ring");
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+
+      // Track rect (drawn once, no animation)
+      const track = svg.querySelector(".track");
+      track.setAttribute("x", BW/2);
+      track.setAttribute("y", BW/2);
+      track.setAttribute("width",  w - BW);
+      track.setAttribute("height", h - BW);
+      track.setAttribute("rx", Math.max(0, R - BW/2));
+
+      const inset = BW/2, rad = Math.max(2, R - BW/2);
+      const x0 = inset, y0 = inset, x1 = w - inset, y1 = h - inset;
+      const cx = w/2;
+      // Right half: top-mid -> top-right corner -> right edge -> bottom-right corner -> bottom-mid (clockwise)
+      const dR =
+        `M ${cx} ${y0} ` +
+        `L ${x1 - rad} ${y0} ` +
+        `A ${rad} ${rad} 0 0 1 ${x1} ${y0 + rad} ` +
+        `L ${x1} ${y1 - rad} ` +
+        `A ${rad} ${rad} 0 0 1 ${x1 - rad} ${y1} ` +
+        `L ${cx} ${y1}`;
+      // Left half: top-mid -> top-left corner -> left edge -> bottom-left corner -> bottom-mid (counter-clockwise)
+      const dL =
+        `M ${cx} ${y0} ` +
+        `L ${x0 + rad} ${y0} ` +
+        `A ${rad} ${rad} 0 0 0 ${x0} ${y0 + rad} ` +
+        `L ${x0} ${y1 - rad} ` +
+        `A ${rad} ${rad} 0 0 0 ${x0 + rad} ${y1} ` +
+        `L ${cx} ${y1}`;
+      svg.querySelector(".prog-L").setAttribute("d", dL);
+      svg.querySelector(".prog-R").setAttribute("d", dR);
+    });
+  }
+  function placeSoldier(animate){
+    if(!G.centers || G.centers[G.slot]==null) return;
+    const x = G.centers[G.slot] + "%";
+    UI.soldier.style.left = x;
+    UI.dizzy.style.left = x;
+    if(animate){
+      UI.soldier.classList.remove("hop"); void UI.soldier.offsetWidth;
+      UI.soldier.classList.add("hop");
+    }
+  }
+
+  /* ---------- progress stripe ---------- */
+  function clearLanes(){
+    if(!UI.lanes || !UI.lanes.length) return;
+    UI.lanes.forEach((ln,i)=>{
+      ln.classList.remove("active","fb-correct","fb-wrong","fb-reveal");
+      UI.slots[i].classList.remove("correct","wrong");
+      UI.progs[i].forEach(el => el.style.strokeDashoffset = 100);
+    });
+  }
+  function activate(){
+    UI.lanes.forEach((ln,i)=>{
+      const on = (i===G.slot && G.armed && !G.locked);
+      ln.classList.toggle("active", on);
+      if(i!==G.slot) UI.progs[i].forEach(el => el.style.strokeDashoffset = 100);
+    });
+  }
+  function setProgress(p){
+    if(!UI.progs[G.slot]) return;
+    const off = (100*(1-p)).toFixed(2);
+    UI.progs[G.slot].forEach(el => el.style.strokeDashoffset = off);
+  }
+
+  /* ---------- question flow ---------- */
+  function updatePhrase(){
+    const t = ART_TXT[G.slot];
+    UI.qArt.textContent = t;
+    UI.qArt.style.display = t ? "" : "none";   // none-slot: show only the bare word
+  }
+  function loadQuestion(i){
+    stopVoice();                       // cut any voice still playing from the last item
+    G.cur = drawQuestion();
+    G.qIndex = i;
+    G.curVoice = preloadVoice(G.cur);  // get this item's clip ready to play on a correct answer
+    // keep soldier where he last stood; only reset on the very first question
+    if(i === 0) G.slot = 1;
+    G.locked = false;
+    clearLanes();
+    UI.qWord.textContent = G.cur.w;
+    updatePhrase();
+    placeSoldier(false);
+    setHUD();
+    // start counting immediately — if the player never moves, the current
+    // box is treated as the chosen answer after HOLD_MS.
+    G.armed = true;
+    G.holdStart = performance.now();
+    G._tickStage = -1;
+    activate();
+  }
+
+  function setSlot(i, fromUser){
+    if(G.locked || G.state!=="play" || G.paused) return;
+    i = Math.max(0, Math.min(G.nLanes-1, i));
+    const changed = (i !== G.slot);
+    G.slot = i;
+    updatePhrase();
+    placeSoldier(changed);
+    if(fromUser){
+      G.armed = true;
+      G.holdStart = performance.now();
+      G._tickStage = -1;
+      if(changed) sMove();
+    }
+    activate();
+  }
+  function disarm(){
+    G.armed = false; G.holdStart = 0;
+    activate(); setProgress(0);
+  }
+
+  function loop(){
+    G.raf = requestAnimationFrame(loop);
+    if(G.state!=="play" || G.paused || G.locked || !G.armed) return;
+    const p = Math.min(1, (performance.now() - G.holdStart) / HOLD_MS);
+    setProgress(p);
+    const stage = Math.floor(p*4);
+    if(stage !== G._tickStage){ G._tickStage = stage; if(p<1) sTick(); }
+    if(p >= 1) confirmAnswer();
+  }
+  function ensureLoop(){ if(!G.raf) G.raf = requestAnimationFrame(loop); }
+
+  /* ---------- feedback visuals ---------- */
+  function showFeedback(txt, good){
+    UI.feedback.textContent = txt;
+    UI.feedback.style.color = good ? "var(--good)" : "var(--bad)";
+    UI.feedback.classList.remove("show","shake"); void UI.feedback.offsetWidth;
+    UI.feedback.classList.add(good ? "show" : "shake");
+  }
+  function showToast(text, good){
+    UI.toast.textContent = text;
+    UI.toast.className = "toast show " + (good?"good":"bad");
+    clearTimeout(UI.toast._t);
+    UI.toast._t = setTimeout(()=>UI.toast.classList.remove("show"), 1500);
+  }
+  function burstStars(){
+    const box = UI.slots[G.slot].getBoundingClientRect();
+    const st  = UI.stage.getBoundingClientRect();
+    const cx = box.left - st.left + box.width/2;
+    const cy = box.top  - st.top  + box.height/2;
+    const icons = ["⭐","✨","🌟","💥"];
+    for(let i=0;i<8;i++){
+      const s = document.createElement("div");
+      s.className = "burst"; s.textContent = icons[i%icons.length];
+      s.style.left = cx+"px"; s.style.top = cy+"px";
+      const ang = (Math.PI*2*i/8)+Math.random()*0.5, dist = 46+Math.random()*54;
+      s.style.setProperty("--bx", `calc(-50% + ${Math.cos(ang)*dist}px)`);
+      s.style.setProperty("--by", `calc(-50% + ${Math.sin(ang)*dist}px)`);
+      s.style.setProperty("--br", (Math.random()*360-180)+"deg");
+      UI.stage.appendChild(s);
+      setTimeout(()=>s.remove(), 820);
+    }
+  }
+  /* Big explosion at a given stage point (x,y) — on a wrong answer */
+  function wrongBurst(cx, cy){
+    const st = UI.stage.getBoundingClientRect();
+    if(cx==null || cy==null){                 // fallback: soldier centre, else lane centre
+      const sr = UI.soldier.getBoundingClientRect();
+      if(sr.width>0){ cx = sr.left-st.left+sr.width/2; cy = sr.top-st.top+sr.height/2; }
+      else { cx = ((G.centers&&G.centers[G.slot]!=null?G.centers[G.slot]:50)/100)*st.width; cy = st.height-130; }
+    }
+    const icons = ["💥","💢","✖️","🔥","⚡","❌","💨"];
+    const N = 14;
+    for(let i=0;i<N;i++){
+      const s = document.createElement("div");
+      s.className = "burst"; s.textContent = icons[i % icons.length];
+      s.style.left = cx + "px"; s.style.top = cy + "px";
+      s.style.fontSize = `clamp(18px, ${3 + Math.random()*1.6}vmin, 38px)`;
+      const ang = (Math.PI*2*i/N) + Math.random()*0.4;
+      const dist = 80 + Math.random()*90;
+      s.style.setProperty("--bx", `calc(-50% + ${Math.cos(ang)*dist}px)`);
+      s.style.setProperty("--by", `calc(-50% + ${Math.sin(ang)*dist}px)`);
+      s.style.setProperty("--br", (Math.random()*540-270)+"deg");
+      s.style.animationDuration = (0.7 + Math.random()*0.4) + "s";
+      UI.stage.appendChild(s);
+      setTimeout(()=>s.remove(), 1200);
+    }
+  }
+  /* full-screen soft red flash + screen shake */
+  function redFlashAndShake(){
+    UI.redFlash.classList.remove("show"); void UI.redFlash.offsetWidth;
+    UI.redFlash.classList.add("show");
+    if(!document.body.classList.contains("cam-on")){      // no screen shake in camera mode
+      UI.app.classList.remove("shake-screen"); void UI.app.offsetWidth;
+      UI.app.classList.add("shake-screen");
+      setTimeout(()=>UI.app.classList.remove("shake-screen"), 600);
+    }
+    setTimeout(()=>UI.redFlash.classList.remove("show"), 900);
+  }
+  function dropObject(){
+    const obj = document.createElement("div");
+    obj.className = "falling";
+    obj.textContent = FALL_OBJECTS[Math.floor(Math.random()*FALL_OBJECTS.length)];
+    obj.style.left = G.centers[G.slot] + "%";
+    UI.stage.appendChild(obj);
+    // measure drop distance once, then animate with transform (no per-frame reflow)
+    const stRect = UI.stage.getBoundingClientRect();
+    const oRect0 = obj.getBoundingClientRect();
+    const startTop = oRect0.top - stRect.top;
+    const vmin = Math.min(window.innerWidth, window.innerHeight);
+    const landMargin = Math.max(120, Math.min(0.30*vmin, 290));
+    obj.style.setProperty("--drop", Math.max(0,(stRect.height - landMargin) - startTop) + "px");
+    void obj.offsetWidth; obj.classList.add("go");
+    sBonk();                       // original drop sound — the moment the object is released
+    // lands on the soldier (he confirmed in this lane)
+    setTimeout(()=>{
+      UI.soldier.classList.add("hurt","flash");
+      UI.dizzy.classList.remove("show"); void UI.dizzy.offsetWidth;
+      UI.dizzy.classList.add("show");
+      playSfx("wrong");            // wrong.mp3 — the moment the emoji hits the soldier
+      // explosion + screen shake happen AT impact, centred on where the object landed
+      // (uses the object's own position, so it also works in camera mode)
+      const st = UI.stage.getBoundingClientRect();
+      const orc = obj.getBoundingClientRect();
+      wrongBurst(orc.left - st.left + orc.width/2, orc.top - st.top + orc.height/2);
+      redFlashAndShake();
+    }, 470);
+    setTimeout(()=>obj.remove(), 700);
+  }
+
+  function confirmAnswer(){
+    G.locked = true;
+    const chosen = ART_KEY[G.slot];
+    const right  = (chosen === G.cur.a);
+    const slotEl = UI.slots[G.slot];
+    UI.lanes[G.slot].classList.remove("active");
+    setProgress(1);
+
+    if(right){
+      G.score += 10; G.correct++;
+      slotEl.classList.add("correct");
+      UI.lanes[G.slot].classList.add("fb-correct");
+      UI.soldier.classList.add("happy");
+      UI.pillScore.classList.add("hit");
+      showFeedback("Correct!", true);
+      burstStars();
+      showToast("✓ " + phrase(G.cur.a, G.cur.w) + " — " + reason(G.cur.a), true);
+      playCorrectThenVoice(G.curVoice);
+    }else{
+      slotEl.classList.add("wrong");
+      UI.lanes[G.slot].classList.add("fb-wrong");
+      const ci = ART_KEY.indexOf(G.cur.a);
+      UI.lanes[ci].classList.add("fb-reveal");
+      showFeedback("Try again!", false);
+      dropObject();
+      showToast("คำตอบคือ “" + phrase(G.cur.a, G.cur.w) + "” — " + reason(G.cur.a), false);
+    }
+    setHUD();
+
+    // Cool-down: keep things locked, then move to the next question after 3s.
+    setTimeout(()=>{
+      UI.soldier.classList.remove("happy","hurt","flash");
+      UI.pillScore.classList.remove("hit");
+    }, 1250);
+    setTimeout(next, 3000);
+  }
+
+  function next(){
+    if(G.qIndex+1 >= TOTAL || G.timeLeft <= 0){ endGame(); return; }
+    loadQuestion(G.qIndex+1);
+  }
+
+  /* ---------- timer ---------- */
+  function startTimer(){
+    clearInterval(G.timerId);
+    G.timerId = setInterval(()=>{
+      if(G.state!=="play" || G.paused) return;
+      G.timeLeft--;
+      setHUD();
+      if(G.timeLeft <= 0){ G.timeLeft=0; setHUD(); endGame(); }
+    }, 1000);
+  }
+
+  /* ---------- screen transitions ---------- */
+  function gotoStart(){
+    G.state = "start";
+    clearInterval(G.timerId);
+    hide(UI.end); hide(UI.countdown);
+    disarm(); clearLanes(); stopVoice();
+    /* hide the whole playfield behind the menu/loading screens ... */
+    document.body.classList.add("pre-reveal");
+    /* ... and actually REMOVE the answer boxes so nothing can ghost through
+       the semi-transparent loading/guide overlays on the next round. */
+    if(UI.lanesWrap) UI.lanesWrap.innerHTML = "";
+    UI.lanes = []; UI.slots = []; UI.progs = [];
+    clearGameBackground();
+    /* the outer shell shows the menu; do not show the legacy start card */
+  }
+  function applyLevel(n){
+    G.level = (n===2) ? 2 : 1;
+    ACTIVE = LEVELS[G.level];
+    ART_KEY = ACTIVE.keys.slice();
+    ART_TXT = ACTIVE.txt.slice();
+    /* lanes/answer boxes are built in startPlay(), only AFTER the countdown ends */
+  }
+  /* ---------- BACKGROUND (random bg1-4.png while playing) ---------- */
+  const _bgCache = new Set();
+  function preloadBg(n){
+    if(_bgCache.has(n)) return Promise.resolve();
+    return new Promise(res=>{
+      const img=new Image();
+      img.onload=()=>{ _bgCache.add(n); res(); };
+      img.onerror=()=>res();
+      img.src="image/bg"+n+".png";
+    });
+  }
+  function applyRandomGameBackground(){
+    const n = 1 + Math.floor(Math.random()*4);   // 1..4
+    const app = document.getElementById("app");
+    if(app) app.style.backgroundImage = 'url("image/bg'+n+'.png")';
+    document.body.classList.add("in-game");
+    return n;
+  }
+  function clearGameBackground(){
+    const app = document.getElementById("app");
+    if(app) app.style.backgroundImage = "";
+    document.body.classList.remove("in-game");
+  }
+
+  function beginGame(){
+    if(isPortrait()) return;            // never start in portrait
+    hide(UI.start); hide(UI.end);
+    try{ AC = AC || new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); }catch(e){}
+    applyLevel(G.level);
+    document.body.classList.add("pre-reveal");   // hide field until countdown finishes
+    // ensure a level background exists (level-select sets it early; "play again" re-rolls)
+    const app=document.getElementById("app");
+    if(!app || !app.style.backgroundImage){
+      preloadBg(applyRandomGameBackground());
+    }
+    G.score=0; G.correct=0; G.qIndex=0; G.timeLeft=TIME;
+    G.state = "countdown";
+    runCountdown();
+  }
+  function runCountdown(){
+    show(UI.countdown);
+    let n = 3;
+    UI.cdNum.textContent = n; bumpCd();
+    const id = setInterval(()=>{
+      n--;
+      if(n > 0){ UI.cdNum.textContent = n; bumpCd(); beep(500,0.08,"sine"); }
+      else if(n === 0){ UI.cdNum.textContent = "Start!"; bumpCd(); beep(740,0.14,"sine"); }
+      else{
+        clearInterval(id);
+        hide(UI.countdown);
+        startPlay();
+      }
+    }, 800);
+  }
+  function bumpCd(){
+    UI.cdNum.style.animation = "none"; void UI.cdNum.offsetWidth; UI.cdNum.style.animation = "";
+  }
+  function startPlay(){
+    G.state = "play";
+    G.paused = isPortrait();
+    document.body.classList.toggle("force-portrait", isPortrait());
+    buildLanes();                                  // create answer boxes only now (after countdown)
+    loadQuestion(0);                               // set the first question while still hidden
+    document.body.classList.remove("pre-reveal");  // reveal the playing field with content ready
+    requestAnimationFrame(()=>{ layoutSoldier(); });
+    startTimer();
+    ensureLoop();
+  }
+  function endGame(){
+    if(G.state==="end") return;
+    G.state = "end";
+    clearInterval(G.timerId);
+    disarm();
+    const acc = Math.round((G.correct/TOTAL)*100);
+    UI.endScore.textContent = G.score;
+    UI.endCorrect.textContent = G.correct + "/" + TOTAL;
+    let stars, title, msg;
+    if(acc >= 90){ stars="⭐⭐⭐"; title="เก่งมาก!"; msg="หนูเป็นฮีโร่ a / an / the แล้ว!"; }
+    else if(acc >= 60){ stars="⭐⭐"; title="ดีมาก!"; msg="เก่งมากพลทหาร"; }
+    else{ stars="⭐"; title="พยายามต่อไป!"; msg="ฝึกบ่อย ๆ เดี๋ยวก็เก่ง สู้ ๆ!"; }
+    UI.endStars.textContent = stars;
+    UI.endTitle.textContent = title;
+    UI.endMsg.textContent = msg;
+    stopVoice();
+    pauseBgm();              // silence the music so the win sound stands out
+    playSfx("win");
+    show(UI.end);
+  }
+
+  /* ---------- input ---------- */
+  /* lane pointer events are (re)bound by bindLaneInput() when lanes are built */
+  window.addEventListener("keydown",(e)=>{
+    if(G.state!=="play") return;
+    if(e.key==="ArrowLeft"){ e.preventDefault(); setSlot(G.slot-1, true); }
+    else if(e.key==="ArrowRight"){ e.preventDefault(); setSlot(G.slot+1, true); }
+    else if(e.key==="ArrowUp"||e.key===" "||e.key==="Enter"){ e.preventDefault(); setSlot(G.slot, true); }
+  });
+
+  UI.btnStart.addEventListener("click", beginGame);
+  UI.btnAgain.addEventListener("click", ()=>{ resumeBgm(); clearGameBackground(); beginGame(); });
+  UI.btnMenu.addEventListener("click", ()=>{ resumeBgm(); gotoStart(); if(window.__shell) window.__shell.toMenu(); });
+  UI.btnHome.addEventListener("click", ()=>{
+    if(G.state==="play"||G.state==="countdown"){
+      gotoStart();
+      if(window.__shell) window.__shell.toMenu();
+    }
+  });
+
+  /* ---------- orientation handling ---------- */
+  function handleOrient(){
+    const p = isPortrait();
+    document.body.classList.toggle("force-portrait", p);
+    if(p){
+      if(G.state==="play"){ G.paused = true; disarm(); }
+    }else{
+      if(G.state==="play"){ G.paused = false; layoutSoldier(); ensureLoop(); }
+    }
+  }
+  window.addEventListener("resize", ()=>{ handleOrient(); layoutSoldier(); });
+  window.addEventListener("orientationchange", ()=>{
+    setTimeout(()=>{ handleOrient(); layoutSoldier(); }, 150);
+  });
+  window.addEventListener("load", ()=>{ layoutSoldier(); });
+  setTimeout(layoutSoldier, 300);
+
+  /* build the default (level 1) lanes so the stage is ready before play */
+  applyLevel(1);
+  requestAnimationFrame(()=>{ layoutSoldier(); });
+
+  /* ---------- public API (used by the outer shell + camera module) ---------- */
+  window.__game = {
+    G,
+    setLevel(n){ G.level = (n===2)?2:1; },
+    setCamera(on){ G.camera = !!on; document.body.classList.toggle("cam-on", !!on); },
+    begin(){ beginGame(); },
+    toStart(){ gotoStart(); },
+    nLanes(){ return G.nLanes; },
+    // camera adapter hooks (see camera module): move cursor / nudge
+    aimLane(i){ setSlot(i, true); },
+    moveLeft(){ setSlot(G.slot-1, true); },
+    moveRight(){ setSlot(G.slot+1, true); },
+    state(){ return G.state; },
+    setVolume(v){ G.volume = Math.max(0, Math.min(1, v)); updateBgmVolume(); },
+    setMuted(m){ G.sound = !m; updateBgmVolume(); },
+    startMusic(){ startBgm(); },
+    isMuted(){ return !G.sound; },
+    applyRandomBg(){ const n=applyRandomGameBackground(); preloadBg(n); return n; },
+    clearBg(){ clearGameBackground(); }
+  };
+
+})();
+</script>
+
+<!-- ===================== SHELL CONTROLLER ===================== -->
+<script>
+(function(){
+  "use strict";
+  const $ = (s)=>document.querySelector(s);
+  const ov = {
+    splash:$("#splashOverlay"), menu:$("#menuOverlay"),
+    preload:$("#preloadOverlay"), how:$("#howOverlay"), guide:$("#guideOverlay")
+  };
+  const show=(el)=>el&&el.classList.add("show");
+  const hide=(el)=>el&&el.classList.remove("show");
+  function only(el){ Object.values(ov).forEach(o=>hide(o)); if(el) show(el); }
+
+  let chosenLevel = 1;
+
+  /* ---- Splash loading blur until bg.png + banner.png are ready ---- */
+  (function(){
+    const splashEl = $("#splashOverlay");
+    if(!splashEl) return;
+    splashEl.classList.add("loading");
+    const bgImg = new Image();
+    bgImg.onload = bgImg.onerror = ()=> splashEl.classList.add("bg-ready");
+    bgImg.src = "image/bg.png";
+    const bannerEl = splashEl.querySelector(".splash-banner");
+    const finish = ()=>{
+      splashEl.classList.add("bg-ready");
+      requestAnimationFrame(()=> splashEl.classList.remove("loading"));
+    };
+    if(bannerEl && bannerEl.complete && bannerEl.naturalWidth>0){ finish(); }
+    else if(bannerEl){
+      bannerEl.addEventListener("load", finish, {once:true});
+      bannerEl.addEventListener("error", finish, {once:true});
+    } else { finish(); }
+    setTimeout(finish, 4000);   // safety: never stay blurred forever
+  })();
+
+  const LEVEL_RULES = {
+    1:"ด่านที่ 1 มี 3 ตัวเลือก: <b>A</b> · <b>An</b> · <b>The</b> ",
+    2:"ด่านที่ 2 มี 4 ตัวเลือก: <b>A</b> · <b>An</b> · <b>The</b> · <b>Non Articles</b>"
+  };
+
+  /* ---- splash → menu ---- */
+  $("#btnEnter").addEventListener("click", ()=>{
+    try{ const A=new (window.AudioContext||window.webkitAudioContext)(); if(A.state==="suspended")A.resume(); }catch(e){}
+    if(window.__game) window.__game.startMusic();   // BGM starts here, loops for the whole session
+    only(ov.menu);
+  });
+
+  /* ---- level select → preload → pre-game guide ---- */
+  $("#levelGrid").addEventListener("click",(e)=>{
+    const card = e.target.closest(".level-card");
+    if(!card) return;
+    chosenLevel = parseInt(card.dataset.level,10) || 1;
+    if(window.__game){
+      window.__game.setLevel(chosenLevel);
+      window.__game.applyRandomBg();   // pick bg now — hidden behind preload + guide blur
+    }
+    runPreload();
+  });
+
+  /* ---- "วิธีเล่น" from menu → info-only overlay (no start) ---- */
+  $("#btnHowGlobal").addEventListener("click", ()=> only(ov.how));
+  $("#btnHowBack").addEventListener("click", ()=> only(ov.menu));
+
+  /* ---- preload ---- */
+  function runPreload(){
+    only(ov.preload);
+    const fill=$("#preloadFill"), pct=$("#preloadPct");
+    let p=0;
+    fill.style.width="0%"; pct.textContent="0%";
+    const id=setInterval(()=>{
+      p += Math.random()*22+8;
+      if(p>=100){ p=100; clearInterval(id); }
+      fill.style.width=p+"%"; pct.textContent=Math.round(p)+"%";
+      if(p>=100){ setTimeout(openGuide, 350); }
+    }, 180);
+  }
+
+  /* ---- pre-game guide (sets level title + rule, has START) ---- */
+  function openGuide(){
+    $("#guideLevelTitle").textContent = "ด่าน " + chosenLevel;
+    $("#guideRule").innerHTML = LEVEL_RULES[chosenLevel] || "";
+    only(ov.guide);
+  }
+  $("#btnGuideBack").addEventListener("click", ()=> only(ov.menu));
+  $("#btnGuideStart").addEventListener("click", ()=>{
+    only(null);
+    if(window.__game) window.__game.begin();   // → countdown → game (100% original)
+  });
+
+  /* ===== Fullscreen (bottom-right) — behaves like F11 ===== */
+  (function(){
+    const btnFs=$("#btnFs");
+    if(!btnFs) return;
+    const docEl=document.documentElement;
+    const reqFn = docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.mozRequestFullScreen||docEl.msRequestFullscreen;
+    const exitFn = document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen;
+    const isFull=()=> document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement;
+    const supported = !!reqFn;
+
+    function enter(){
+      if(!reqFn) return;
+      // request with navigationUI hidden where supported (closest to F11)
+      try{ const p=reqFn.call(docEl,{navigationUI:"hide"}); if(p&&p.catch) p.catch(()=>reqFn.call(docEl)); }
+      catch(_){ try{ reqFn.call(docEl); }catch(__){} }
+    }
+    function leave(){ if(exitFn){ try{ exitFn.call(document); }catch(_){} } }
+    function toggle(){ if(isFull()) leave(); else enter(); }
+
+    if(!supported){
+      // iOS Safari has no element fullscreen — keep button but show a hint instead of hiding it
+      btnFs.title = "อุปกรณ์นี้ไม่รองรับเต็มจอ (ลองหมุนเป็นแนวนอน)";
+    }
+    btnFs.addEventListener("click", toggle);
+
+    // keyboard: F11 (intercept the page-level one when possible) and "F"
+    window.addEventListener("keydown",(e)=>{
+      if(e.key==="F11"){ e.preventDefault(); toggle(); }
+      else if((e.key==="f"||e.key==="F") && !e.ctrlKey && !e.metaKey && !e.altKey){
+        const tag=(e.target&&e.target.tagName)||"";
+        if(tag!=="INPUT"&&tag!=="TEXTAREA"){ e.preventDefault(); toggle(); }
+      }
+    });
+
+    const render=()=>{ const on=!!isFull(); btnFs.classList.toggle("on",on); btnFs.setAttribute("aria-pressed",String(on)); };
+    ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"]
+      .forEach(ev=>document.addEventListener(ev, render));
+  })();
+
+  /* ===== Sound: mute popup + slider (example-style, bottom-right) ===== */
+  (function(){
+    const btnMute=$("#btnMute"), volControl=$("#volControl"),
+          btnVolMute=$("#btnVolMute"), slider=$("#volSlider"), volPopup=$("#volPopup");
+    if(!btnMute||!volControl) return;
+    const g=()=> window.__game;
+    let muted=false, vol=0.6;
+    try{ const v=localStorage.getItem("cadetVol"); if(v!==null) vol=Math.max(0,Math.min(1,parseFloat(v))); }catch(_){}
+    function apply(){
+      if(g()){ g().setVolume(muted?0:vol); g().setMuted(muted); }
+      volControl.classList.toggle("muted", muted || vol<=0);
+      btnMute.setAttribute("aria-pressed", String(muted));
+      if(slider){ slider.value=Math.round(vol*100); slider.style.setProperty("--vol-fill",(vol*100)+"%"); }
+    }
+    apply();
+    if(slider){
+      slider.addEventListener("input", ()=>{
+        vol = parseInt(slider.value,10)/100;
+        if(vol>0) muted=false;
+        try{ localStorage.setItem("cadetVol", String(vol)); }catch(_){}
+        apply();
+      });
+    }
+    btnMute.addEventListener("click",(e)=>{
+      e.stopPropagation();
+      const open=!volControl.classList.contains("open");
+      volControl.classList.toggle("open", open);
+      btnMute.setAttribute("aria-expanded", String(open));
+    });
+    btnVolMute&&btnVolMute.addEventListener("click",(e)=>{ e.stopPropagation(); muted=!muted; apply(); });
+    document.addEventListener("click",(e)=>{
+      if(!volControl.contains(e.target)){ volControl.classList.remove("open"); btnMute.setAttribute("aria-expanded","false"); }
+    });
+    volPopup&&volPopup.addEventListener("click",(e)=>e.stopPropagation());
+  })();
+
+  /* ---- public shell API ---- */
+  window.__shell = {
+    toMenu(){ only(ov.menu); },
+    toSplash(){ only(ov.splash); }
+  };
+})();
+</script>
+
+<!-- ===================== CAMERA + POSE (body-position adapter) ===================== -->
+<script type="module">
+/* Load MediaPipe Pose Landmarker. If it fails (offline / blocked), the camera
+ * button is disabled but touch/keyboard play still works perfectly.            */
+let PoseLandmarker, FilesetResolver;
+try{
+  const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3");
+  PoseLandmarker = mod.PoseLandmarker;
+  FilesetResolver = mod.FilesetResolver;
+}catch(err){
+  console.warn("[pose] MediaPipe load failed — camera mode disabled:", err);
+  ["btnCam","btnCamFloat"].forEach(id=>{
+    const b=document.getElementById(id);
+    if(b){ b.disabled=true; b.style.opacity=".5"; b.title="กล้องไม่พร้อมใช้งาน (โหลดโมเดลไม่สำเร็จ)"; }
+  });
+  const note=document.getElementById("camNote");
+  if(note) note.textContent="เปิดกล้องไม่สำเร็จ — เล่นแบบคลิก/ลูกศรได้ตามปกติ";
+}
+
+const video  = document.getElementById("cameraMirror");
+const camCvs = document.getElementById("camCanvas");
+const camCtx = camCvs.getContext("2d", { alpha:true });
+const camBtn = document.getElementById("btnCam");
+const camFloat = document.getElementById("btnCamFloat");
+const camButtons = [camBtn, camFloat].filter(Boolean);
+const playerTag = document.getElementById("playerTag");
+const zoneWarn  = document.getElementById("zoneWarning");
+
+const DETECT_W = 320;
+const detectCanvas = document.createElement("canvas");
+const detectCtx    = detectCanvas.getContext("2d", { alpha:false });
+
+let landmarker=null, stream=null, CAM_ON=false, raf=0, starting=false;
+
+/* ---- smoothing + lane mapping ---- */
+const POS_ALPHA = 0.30;       // EMA on the aim point's screen-x
+let aimSmoothX = null;
+const EDGE_PAD = 0.10;        // dead margin at far left/right so corners are reachable
+
+function fitCamCanvas(){
+  const dpr = Math.max(1, window.devicePixelRatio||1);
+  camCvs.width  = Math.round(innerWidth*dpr);
+  camCvs.height = Math.round(innerHeight*dpr);
+  camCvs.style.width  = innerWidth+"px";
+  camCvs.style.height = innerHeight+"px";
+  camCtx.setTransform(1,0,0,1,0,0);
+  camCtx.scale(dpr,dpr);
+}
+fitCamCanvas();
+window.addEventListener("resize", fitCamCanvas);
+
+async function ensureLandmarker(){
+  if(!PoseLandmarker||!FilesetResolver) throw new Error("MediaPipe not loaded");
+  if(landmarker) return landmarker;
+  const fileset = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+  );
+  landmarker = await PoseLandmarker.createFromOptions(fileset,{
+    baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" },
+    runningMode:"VIDEO", numPoses:1,
+    minPoseDetectionConfidence:.4, minPosePresenceConfidence:.4, minTrackingConfidence:.4
+  });
+  return landmarker;
+}
+
+/* video frame → screen pixel (account for object-fit:cover + mirror) */
+function coverCropRect(){
+  const vw=video.videoWidth||640, vh=video.videoHeight||480;
+  const sw=innerWidth, sh=innerHeight;
+  const scale=Math.max(sw/vw, sh/vh);
+  const sW=Math.round(sw/scale), sH=Math.round(sh/scale);
+  const sX=Math.round((vw-sW)/2), sY=Math.round((vh-sH)/2);
+  return { sX,sY,sW,sH,vw,vh,sw,sh };
+}
+function landmarkToScreen(lm){
+  const { sX,sY,sW,sH,vw,vh,sw,sh }=coverCropRect();
+  const px=lm.x*vw, py=lm.y*vh;
+  const u=(px-sX)/sW, v=(py-sY)/sH;
+  let x=u*sw, y=v*sh;
+  x = sw - x;                       // mirror (video is scaleX(-1))
+  return { x, y };
+}
+
+function setZone(show){
+  if(!zoneWarn) return;
+  zoneWarn.classList.toggle("show", !!show);
+}
+
+/* main per-frame: map player's horizontal body position to a lane */
+function processPose(res){
+  const sw=innerWidth, sh=innerHeight;
+  camCtx.clearRect(0,0,sw,sh);
+  if(!res?.landmarks?.length){ setZone(true); if(playerTag) playerTag.classList.remove("show"); return; }
+  const lm=res.landmarks[0];
+  const LS=lm[11], RS=lm[12], NOSE=lm[0];
+  if(!LS||!RS){ setZone(true); return; }
+
+  // require the player roughly framed (shoulders visible & inside view)
+  const framed = (LS.visibility===undefined || (LS.visibility>0.3 && RS.visibility>0.3));
+  if(!framed){ setZone(true); if(playerTag) playerTag.classList.remove("show"); return; }
+  setZone(false);
+
+  // selection point = the player's FACE / head (nose); fall back to chest centre if no nose
+  const cxN=(LS.x+RS.x)/2, cyN=(LS.y+RS.y)/2;
+  const aim = NOSE ? landmarkToScreen(NOSE) : landmarkToScreen({x:cxN,y:cyN});
+
+  // EMA smooth on screen-x
+  aimSmoothX = (aimSmoothX===null) ? aim.x : aimSmoothX + (aim.x-aimSmoothX)*POS_ALPHA;
+
+  // keep the tag hidden (no "หนูคือทหาร" label in camera mode)
+  if(playerTag) playerTag.classList.remove("show");
+
+  // map smoothed x across the lanes (left edge = lane 0 ... right edge = last)
+  const game = window.__game;
+  if(game && game.state()==="play"){
+    const n = game.nLanes();
+    const usable = sw*(1-2*EDGE_PAD);
+    let t = (aimSmoothX - sw*EDGE_PAD)/usable;     // 0..1
+    t = Math.max(0, Math.min(1, t));
+    const lane = Math.min(n-1, Math.floor(t*n));
+    if(lane !== game.G.slot) game.aimLane(lane);
+  }
+  // no on-screen marker drawn (green dot removed per design)
+}
+
+const DETECT_INTERVAL = 33;   // ms between pose detections (~30fps) — frees the main thread
+let lastDetect = 0;
+function runLoop(){
+  const step=()=>{
+    if(!CAM_ON){ raf=0; return; }
+    if(!video.videoWidth){ raf=requestAnimationFrame(step); return; }
+    const now = performance.now();
+    if(now - lastDetect >= DETECT_INTERVAL){   // throttle the heavy detect; rAF still smooth
+      lastDetect = now;
+      try{
+        const { sX,sY,sW,sH }=coverCropRect();
+        const ratio=(video.videoWidth||640)/(video.videoHeight||480);
+        detectCanvas.width=DETECT_W;
+        detectCanvas.height=Math.round(DETECT_W/ratio);
+        detectCtx.drawImage(video, sX,sY,sW,sH, 0,0, detectCanvas.width, detectCanvas.height);
+        const r=landmarker.detectForVideo(detectCanvas, now);
+        processPose(r);
+      }catch(e){ /* swallow per-frame errors */ }
+    }
+    raf=requestAnimationFrame(step);
+  };
+  raf=requestAnimationFrame(step);
+}
+
+function reflectCamButtons(on){
+  camButtons.forEach(b=>{
+    b.classList.toggle("cam-on", on);
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on?"true":"false");
+    b.title = on ? "ปิดกล้อง" : "เปิด/ปิดกล้อง";
+  });
+}
+
+async function startCamera(){
+  if(starting||CAM_ON) return;
+  if(!PoseLandmarker){ camButtons.forEach(b=>{ b.disabled=true; b.title="กล้องไม่พร้อมใช้งาน"; }); return; }
+  starting=true;
+  try{
+    camButtons.forEach(b=>b.disabled=true);
+    await ensureLandmarker();
+    let needNew=true;
+    if(stream){
+      const t=stream.getVideoTracks();
+      if(t.length && t[0].readyState==="live") needNew=false;
+      else { try{ stream.getTracks().forEach(x=>x.stop()); }catch(_){} stream=null; }
+    }
+    if(needNew){
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{ width:960, height:540, frameRate:30, facingMode:"user" }, audio:false
+      });
+    }
+    video.srcObject=stream;
+    await video.play().catch(()=>{});
+    video.style.display="block";
+    camCvs.style.display="block";
+    document.body.classList.add("cam-on");
+    if(window.__game) window.__game.setCamera(true);
+    CAM_ON=true; aimSmoothX=null; lastDetect=0;
+    reflectCamButtons(true);
+    fitCamCanvas();
+    if(!raf) runLoop();
+  }catch(err){
+    console.warn("[camera] start failed:", err);
+    try{ if(stream){ stream.getTracks().forEach(t=>t.stop()); } }catch(_){}
+    stream=null; CAM_ON=false;
+    video.style.display="none"; camCvs.style.display="none";
+    document.body.classList.remove("cam-on");
+    if(window.__game) window.__game.setCamera(false);
+    reflectCamButtons(false);
+    const note=document.getElementById("camNote");
+    if(note) note.textContent = err?.name==="NotAllowedError"
+      ? "ไม่ได้รับอนุญาตให้ใช้กล้อง — เล่นแบบคลิก/ลูกศรได้นะ"
+      : "เปิดกล้องไม่สำเร็จ — เล่นแบบแตะ/ลูกศรได้นะ";
+  }finally{
+    camButtons.forEach(b=>b.disabled=false);
+    starting=false;
+  }
+}
+
+function stopCamera(){
+  CAM_ON=false;
+  if(raf){ cancelAnimationFrame(raf); raf=0; }
+  try{ video.pause(); }catch(_){}
+  try{ video.srcObject=null; }catch(_){}
+  video.removeAttribute("srcObject");
+  video.style.display="none"; camCvs.style.display="none";
+  camCtx.clearRect(0,0,innerWidth,innerHeight);
+  document.body.classList.remove("cam-on");
+  if(playerTag) playerTag.classList.remove("show");
+  if(zoneWarn) zoneWarn.classList.remove("show");
+  if(window.__game) window.__game.setCamera(false);
+  aimSmoothX=null;
+  reflectCamButtons(false);
+}
+
+function toggleCamera(){
+  if(camButtons.some(b=>b.disabled)) return;
+  if(!CAM_ON) startCamera(); else stopCamera();
+}
+camButtons.forEach(b=> b.addEventListener("click", toggleCamera));
+window.__toggleCamera = toggleCamera;
+window.__stopCamera   = stopCamera;
+window.addEventListener("pagehide", ()=>{
+  try{ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }catch(_){}
+});
+</script>
+
+</body>
+</html>
